@@ -869,7 +869,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bl extern lj_meta_for	// (lua_State *L, TValue *base)
   |  ldr INSw, [PC, #-4]
   |.if JIT
-  |   uxtb TMP0, INS
+  |   uxtb TMP0w, INSw
   |.endif
   |  decode_RA RA, INS
   |  decode_RD RC, INS
