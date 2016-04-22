@@ -36,6 +36,7 @@ enum {
   /* These definitions must match with the *.dasc file(s): */
   RID_BASE = RID_X19,		/* Interpreter BASE. */
   RID_LPC = RID_X21,		/* Interpreter PC. */
+  RID_DISPATCH = RID_X0,	/* !!!TODO Interpreter DISPATCH table. */
   RID_GL = RID_X22,		/* Interpreter GL. */
   RID_LREG = RID_X23,		/* Interpreter L. */
 
@@ -72,6 +73,55 @@ enum {
 #define REGARG_FIRSTFPR		RID_D0
 #define REGARG_LASTFPR		RID_D7
 #define REGARG_NUMFPR		8
+
+/* -- Spill slots --------------------------------------------------------- */
+
+/* Spill slots are 32 bit wide. An even/odd pair is used for FPRs.
+**
+** SPS_FIXED: Available fixed spill slots in interpreter frame.
+** This definition must match with the *.dasc file(s).
+**
+** SPS_FIRST: First spill slot for general use. Reserve min. two 32 bit slots.
+*/
+/* !!!TODO from x86 for the LJ_64 stuff */
+#if LJ_64
+#if LJ_GC64
+#define SPS_FIXED       2
+#else
+#define SPS_FIXED       4
+#endif
+#define SPS_FIRST       2
+#else
+#define SPS_FIXED       6
+#define SPS_FIRST       2
+#endif
+
+#define SPOFS_TMP       0
+
+#define sps_scale(slot)         (4 * (int32_t)(slot))
+#define sps_align(slot)         (((slot) - SPS_FIXED + 3) & ~3)
+
+/* -- Exit state ---------------------------------------------------------- */
+
+/* This definition must match with the *.dasc file(s). */
+typedef struct {
+  lua_Number fpr[RID_NUM_FPR];  /* Floating-point registers. */
+  intptr_t gpr[RID_NUM_GPR];     /* General-purpose registers. */
+  int32_t spill[256];           /* Spill slots. */
+} ExitState;
+
+#if 0
+/* PC after instruction that caused an exit. Used to find the trace number. */
+#define EXITSTATE_PCREG         RID_PC
+/* Highest exit + 1 indicates stack check. */
+#define EXITSTATE_CHECKEXIT     1
+
+#define EXITSTUB_SPACING        4
+#define EXITSTUBS_PER_GROUP     32
+#endif
+
+#define exitstub_trace_addr(T, exitno) ({lua_unimpl(); (void*)0;})
+
 
 /* -- Instructions -------------------------------------------------------- */
 

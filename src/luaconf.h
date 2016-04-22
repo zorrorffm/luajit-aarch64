@@ -153,4 +153,7 @@
 #define luai_apicheck(L, o)	{ (void)L; }
 #endif
 
+#define lua_unimpl() \
+ do { extern int printf(const char*,...); printf("Unimplemented: %s\n", __FUNCTION__); __builtin_abort(); } while (0)
+
 #endif
