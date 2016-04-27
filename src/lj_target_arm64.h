@@ -116,9 +116,9 @@ typedef struct {
 /* Highest exit + 1 indicates stack check. */
 #define EXITSTATE_CHECKEXIT     1
 
+#endif
 #define EXITSTUB_SPACING        4
 #define EXITSTUBS_PER_GROUP     32
-#endif
 
 #define exitstub_trace_addr(T, exitno) ({lua_unimpl(); (void*)0;})
 
@@ -139,8 +139,10 @@ typedef enum A64Ins {
   A64I_MOVZx = 0xd2800000,
   A64I_LDRLw = 0x18000000,
   A64I_LDRLx = 0x58000000,
+  A64I_STR = 0xf9000000,
   A64I_NOP = 0xd503201f,
   A64I_B = 0x14000000,
+  A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
 } A64Ins;
 
