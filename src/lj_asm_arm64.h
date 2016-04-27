@@ -33,14 +33,35 @@ static Reg ra_alloc2(ASMState *as, IRIns *ir, RegSet allow)
 /* Generate an exit stub group at the bottom of the reserved MCode memory. */
 static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
 {
-    lua_unimpl();
-    return 0;
+  MCode *mxp = as->mcbot;
+  int i;
+  if (mxp + 4*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
+    asm_mclimit(as);
+  /* str lr, [sp]; bl ->vm_exit_handler; .long DISPATCH_address, group. */
+  *mxp++ = A64I_STR|A64F_D(RID_LR)|A64F_N(RID_SP);
+  *mxp = A64I_BL|(((MCode *)(void *)lj_vm_exit_handler-mxp)&0x03ffffffu);
+  mxp++;
+  *mxp++ = (MCode)i32ptr(J2GG(as->J)->dispatch);  /* DISPATCH address */
+  *mxp++ = group*EXITSTUBS_PER_GROUP;
+  for (i = 0; i < EXITSTUBS_PER_GROUP; i++)
+    *mxp++ = A64I_B|((-6-i)&0x00ffffffu);
+  lj_mcode_sync(as->mcbot, mxp);
+  lj_mcode_commitbot(as->J, mxp);
+  as->mcbot = mxp;
+  as->mclim = as->mcbot + MCLIM_REDZONE;
+  return mxp - EXITSTUBS_PER_GROUP;
 }
 
 /* Setup all needed exit stubs. */
 static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
 {
-    lua_unimpl();
+  // !!!TODO shared with ARM
+  ExitNo i;
+  if (nexits >= EXITSTUBS_PER_GROUP*LJ_MAX_EXITSTUBGR)
+    lj_trace_err(as->J, LJ_TRERR_SNAPOV);
+  for (i = 0; i < (nexits+EXITSTUBS_PER_GROUP-1)/EXITSTUBS_PER_GROUP; i++)
+    if (as->J->exitstubgroup[i] == NULL)
+      as->J->exitstubgroup[i] = asm_exitstub_gen(as, i);
 }
 
 /* Emit conditional branch to exit for guard. */
@@ -554,7 +575,9 @@ static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
 
 static void asm_setup_target(ASMState *as)
 {
-    lua_unimpl();
+  // !!!TODO shared with ARM.
+  /* May need extra exit for asm_stack_check on side traces. */
+  asm_exitstub_setup(as, as->T->nsnap + (as->parent ? 1 : 0));
 }
 
 /* -- Trace patching ------------------------------------------------------ */

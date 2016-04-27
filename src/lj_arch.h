@@ -171,9 +171,9 @@
 #define LJ_TARGET_MASKROT	1
 #define LJ_TARGET_UNALIGNED	1
 #define LJ_ARCH_NUMMODE		LJ_NUMMODE_SINGLE_DUAL
-#ifdef LUAJIT_ENABLE_GC64
+//#ifdef LUAJIT_ENABLE_GC64
 #define LJ_TARGET_GC64		1
-#endif
+//#endif
 
 #elif LUAJIT_TARGET == LUAJIT_ARCH_ARM
 
@@ -454,6 +454,7 @@
 /* Disable or enable the JIT compiler. */
 #if defined(LUAJIT_DISABLE_JIT) || defined(LJ_ARCH_NOJIT) || defined(LJ_OS_NOJIT) /*|| (LUAJIT_TARGET!=LUAJIT_ARCH_ARM64 && (LJ_FR2 || LJ_GC64))*/
 #define LJ_HASJIT		0
+#error foo
 #else
 #define LJ_HASJIT		1
 #endif
