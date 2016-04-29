@@ -97,6 +97,37 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
     return 0;
 }
 
+/* Fuse m operand into arithmetic/logic instructions. */
+static uint32_t asm_fuseopm(ASMState *as, ARMIns ai, IRRef ref, RegSet allow)
+{
+  IRIns *ir = IR(ref);
+  if (ra_hasreg(ir->r)) {
+    ra_noweak(as, ir->r);
+    return ARMF_M(ir->r);
+  } else if (irref_isk(ref)) {
+    uint32_t k = emit_isk12(ai, ir->i);
+    if (k)
+      return k;
+  } else if (mayfuse(as, ref)) {
+    if (ir->o >= IR_BSHL && ir->o <= IR_BROR) {
+      Reg m = ra_alloc1(as, ir->op1, allow);
+      ARMShift sh = ir->o == IR_BSHL ? ARMSH_LSL :
+		    ir->o == IR_BSHR ? ARMSH_LSR :
+		    ir->o == IR_BSAR ? ARMSH_ASR : ARMSH_ROR;
+      if (irref_isk(ir->op2)) {
+	return m | ARMF_SH(sh, (IR(ir->op2)->i & 31));
+      } else {
+	Reg s = ra_alloc1(as, ir->op2, rset_exclude(allow, m));
+	return m | ARMF_RSH(sh, s);
+      }
+    } else if (ir->o == IR_ADD && ir->op1 == ir->op2) {
+      Reg m = ra_alloc1(as, ir->op1, allow);
+      return m | ARMF_SH(ARMSH_LSL, 1);
+    }
+  }
+  return ra_allocref(as, ref, allow);
+}
+
 /* Fuse shifts into loads/stores. Only bother with BSHL 2 => lsl #2. */
 static IRRef asm_fuselsl2(ASMState *as, IRRef ref)
 {
@@ -111,14 +142,14 @@ static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
     lua_unimpl();
 }
 
-#if !LJ_SOFTFP
 /* Fuse to multiply-add/sub instruction. */
 static int asm_fusemadd(ASMState *as, IRIns *ir, A64Ins ai, A64Ins air)
 {
     lua_unimpl();
     return 0;
 }
-#endif
+
+
 
 /* -- Calls --------------------------------------------------------------- */
 
@@ -438,7 +469,6 @@ static void asm_min_max(ASMState *as, IRIns *ir, int cc, int fcc)
 
 /* -- Comparisons --------------------------------------------------------- */
 
-#if 0
 /* Map of comparisons to flags. ORDER IR. */
 static const uint8_t asm_compmap[IR_ABC+1] = {
   /* op  FP swp  int cc   FP cc */
@@ -454,7 +484,6 @@ static const uint8_t asm_compmap[IR_ABC+1] = {
   /* NE       */ CC_EQ + (CC_EQ << 4),
   /* ABC      */ CC_LS + (CC_LS << 4)  /* Same as UGT. */
 };
-#endif
 
 /* FP comparisons. */
 static void asm_fpcomp(ASMState *as, IRIns *ir)
@@ -465,12 +494,37 @@ static void asm_fpcomp(ASMState *as, IRIns *ir)
 /* Integer comparisons. */
 static void asm_intcomp(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  A64CC cc = (asm_compmap[ir->o] & 15);
+  IRRef lref = ir->op1, rref = ir->op2;
+  Reg left;
+  uint32_t m;
+  int cmpprev0 = 0;
+
+  /* !!!TODO what does this mean, isu32 looks suspicious for 64bit arch */
+  lua_assert(irt_isint(ir->t) || irt_isu32(ir->t) || irt_isaddr(ir->t));
+
+  /* !!!TODO ARM exploits TST here for comp(BAND(left, right) */
+
+  left = ra_alloc1(as, lref, RSET_GPR);
+
+  m = asm_fuseopm(as, A64I_CMPx, rref, rset_exclude(RSET_GPR, left));
+  asm_guardcc(as, cc);
+  emit_n(as, A64I_CMPx^m, left);
+
+  /* !!!TODO we should do this so that the compare can be elided by
+     making the instruction before flagsetting */
+  /* Signed comparison with zero and referencing previous ins? */
+  if (cmpprev0 && (cc <= CC_NE || cc >= CC_GE))
+    as->flagmcp = as->mcp;  /* Allow elimination of the compare. */
+
 }
 
 static void asm_comp(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  if (irt_isnum(ir->t))
+    asm_fpcomp(as, ir);
+  else
+    asm_intcomp(as, ir);
 }
 
 #define asm_equal(as, ir)	asm_comp(as, ir)
@@ -561,7 +615,15 @@ static void asm_tail_fixup(ASMState *as, TraceNo lnk)
 /* Prepare tail of code. */
 static void asm_tail_prep(ASMState *as)
 {
-    lua_unimpl();
+  /* !!!TODO shared with ARM */
+  MCode *p = as->mctop - 1;  /* Leave room for exit branch. */
+  if (as->loopref) {
+    as->invmcp = as->mcp = p;
+  } else {
+    as->mcp = p-1;  /* Leave room for stack pointer adjustment. */
+    as->invmcp = NULL;
+  }
+  *p = 0;  /* Prevent load/store merging. */
 }
 
 /* -- Trace setup --------------------------------------------------------- */
