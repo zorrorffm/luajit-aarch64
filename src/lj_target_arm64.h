@@ -125,6 +125,13 @@ typedef struct {
 
 /* -- Instructions -------------------------------------------------------- */
 
+/* ARM condition codes. */
+typedef enum A64CC {
+  CC_EQ, CC_NE, CC_CS, CC_CC, CC_MI, CC_PL, CC_VS, CC_VC,
+  CC_HI, CC_LS, CC_GE, CC_LT, CC_GT, CC_LE, CC_AL,
+  CC_HS = CC_CS, CC_LO = CC_CC
+} A64CC;
+
 /* Instruction fields. */
 #define A64F_D(r)	(r)
 #define A64F_N(r)       ((r) << 5)
@@ -144,6 +151,8 @@ typedef enum A64Ins {
   A64I_B = 0x14000000,
   A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
+  A64I_SUBSx = 0xcb000000,
+  A64I_CMPx = 0xcb000000 | A64_D (RID_ZERO),
 } A64Ins;
 
 #endif
