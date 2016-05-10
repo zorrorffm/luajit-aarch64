@@ -209,17 +209,17 @@ static uint32_t asm_fuseopm(ASMState *as, ARMIns ai, IRRef ref, RegSet allow)
 		    ir->o == IR_BSHR ? ARMSH_LSR :
 		    ir->o == IR_BSAR ? ARMSH_ASR : ARMSH_ROR;
       if (irref_isk(ir->op2)) {
-	return m | ARMF_SH(sh, (IR(ir->op2)->i & 31));
+	return ARMF_M(m) | ARMF_SH(sh, (IR(ir->op2)->i & 31));
       } else {
 	Reg s = ra_alloc1(as, ir->op2, rset_exclude(allow, m));
-	return m | ARMF_RSH(sh, s);
+	return ARMF_M(m) | ARMF_RSH(sh, s);
       }
     } else if (ir->o == IR_ADD && ir->op1 == ir->op2) {
       Reg m = ra_alloc1(as, ir->op1, allow);
-      return m | ARMF_SH(ARMSH_LSL, 1);
+      return ARMF_M(m) | ARMF_SH(ARMSH_LSL, 1);
     }
   }
-  return ra_allocref(as, ref, allow);
+  return ARMF_M(ra_allocref(as, ref, allow));
 }
 
 /* Fuse shifts into loads/stores. Only bother with BSHL 2 => lsl #2. */
