@@ -140,19 +140,49 @@ typedef enum A64CC {
 #define A64F_U16(x)	((x) << 5)
 #define A64F_S26(x)	(x)
 #define A64F_S19(x)	((x) << 5)
+#define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
+#define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
+
+#define A64F_B_CC(insn, cc)	(insn ^ cc)
 
 typedef enum A64Ins {
+  A64I_S = 0x20000000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
+  A64I_LDRw = 0xb9400000,
+  A64I_LDRx = 0xf9400000,
   A64I_LDRLw = 0x18000000,
   A64I_LDRLx = 0x58000000,
   A64I_STR = 0xf9000000,
   A64I_NOP = 0xd503201f,
+  A64I_ADDw = 0x0b000000,
+  A64I_ADDx = 0x8b000000,
+  A64I_ADDSw = 0x0b000000 | A64I_S,
+  A64I_ADDSx = 0x8b000000 | A64I_S,
   A64I_B = 0x14000000,
   A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
-  A64I_SUBSx = 0xcb000000,
-  A64I_CMPx = 0xcb000000 | A64_D (RID_ZERO),
+  A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
+  A64I_CCMPx = 0xfa400000, /* ccmp x0,x0,#0,eq */
+  A64I_STRw = 0xb9000000, /* str w0,[x0] */
+  A64I_STRx = 0xf9000000, /* str x0,[x0] */
+  A64I_SUBx = 0xcb000000,
+  A64I_SUBw = 0x4b000000,
+  A64I_SUBSx = A64I_SUBx | A64I_S,
+  A64I_SUBSw = A64I_SUBw | A64I_S,
+
+  /* FP */
+  A64I_ADDd = 0x5ee08400,
+  A64I_FMADDd = 0x1f400000,
+  A64I_STRd = 0xfd000000, /* str d0,[x0] */
+
+  /* assembler aliases */
+  A64I_CMPw = A64I_SUBSw | A64F_D (RID_ZERO),
+  A64I_CMPx = A64I_SUBSx | A64F_D (RID_ZERO),
+  A64I_CMNx = A64I_ADDSx | A64F_D (RID_ZERO),
+
+  /* fields */
+  A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
 } A64Ins;
 
 #endif
