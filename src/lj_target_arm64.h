@@ -36,6 +36,7 @@ enum {
   /* These definitions must match with the *.dasc file(s): */
   RID_BASE = RID_X19,		/* Interpreter BASE. */
   RID_LPC = RID_X21,		/* Interpreter PC. */
+  RID_DISPATCH = RID_X0,	/* !!!TODO Interpreter DISPATCH table. */
   RID_GL = RID_X22,		/* Interpreter GL. */
   RID_LREG = RID_X23,		/* Interpreter L. */
 
@@ -73,7 +74,63 @@ enum {
 #define REGARG_LASTFPR		RID_D7
 #define REGARG_NUMFPR		8
 
+/* -- Spill slots --------------------------------------------------------- */
+
+/* Spill slots are 32 bit wide. An even/odd pair is used for FPRs.
+**
+** SPS_FIXED: Available fixed spill slots in interpreter frame.
+** This definition must match with the *.dasc file(s).
+**
+** SPS_FIRST: First spill slot for general use. Reserve min. two 32 bit slots.
+*/
+/* !!!TODO from x86 for the LJ_64 stuff */
+#if LJ_64
+#if LJ_GC64
+#define SPS_FIXED       2
+#else
+#define SPS_FIXED       4
+#endif
+#define SPS_FIRST       2
+#else
+#define SPS_FIXED       6
+#define SPS_FIRST       2
+#endif
+
+#define SPOFS_TMP       0
+
+#define sps_scale(slot)         (4 * (int32_t)(slot))
+#define sps_align(slot)         (((slot) - SPS_FIXED + 3) & ~3)
+
+/* -- Exit state ---------------------------------------------------------- */
+
+/* This definition must match with the *.dasc file(s). */
+typedef struct {
+  lua_Number fpr[RID_NUM_FPR];  /* Floating-point registers. */
+  intptr_t gpr[RID_NUM_GPR];     /* General-purpose registers. */
+  int32_t spill[256];           /* Spill slots. */
+} ExitState;
+
+#if 0
+/* PC after instruction that caused an exit. Used to find the trace number. */
+#define EXITSTATE_PCREG         RID_PC
+/* Highest exit + 1 indicates stack check. */
+#define EXITSTATE_CHECKEXIT     1
+
+#endif
+#define EXITSTUB_SPACING        4
+#define EXITSTUBS_PER_GROUP     32
+
+#define exitstub_trace_addr(T, exitno) ({lua_unimpl(); (void*)0;})
+
+
 /* -- Instructions -------------------------------------------------------- */
+
+/* ARM condition codes. */
+typedef enum A64CC {
+  CC_EQ, CC_NE, CC_CS, CC_CC, CC_MI, CC_PL, CC_VS, CC_VC,
+  CC_HI, CC_LS, CC_GE, CC_LT, CC_GT, CC_LE, CC_AL,
+  CC_HS = CC_CS, CC_LO = CC_CC
+} A64CC;
 
 /* Instruction fields. */
 #define A64F_D(r)	(r)
@@ -83,15 +140,49 @@ enum {
 #define A64F_U16(x)	((x) << 5)
 #define A64F_S26(x)	(x)
 #define A64F_S19(x)	((x) << 5)
+#define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
+#define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
+
+#define A64F_B_CC(insn, cc)	(insn ^ cc)
 
 typedef enum A64Ins {
+  A64I_S = 0x20000000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
+  A64I_LDRw = 0xb9400000,
+  A64I_LDRx = 0xf9400000,
   A64I_LDRLw = 0x18000000,
   A64I_LDRLx = 0x58000000,
+  A64I_STR = 0xf9000000,
   A64I_NOP = 0xd503201f,
+  A64I_ADDw = 0x0b000000,
+  A64I_ADDx = 0x8b000000,
+  A64I_ADDSw = 0x0b000000 | A64I_S,
+  A64I_ADDSx = 0x8b000000 | A64I_S,
   A64I_B = 0x14000000,
+  A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
+  A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
+  A64I_CCMPx = 0xfa400000, /* ccmp x0,x0,#0,eq */
+  A64I_STRw = 0xb9000000, /* str w0,[x0] */
+  A64I_STRx = 0xf9000000, /* str x0,[x0] */
+  A64I_SUBx = 0xcb000000,
+  A64I_SUBw = 0x4b000000,
+  A64I_SUBSx = A64I_SUBx | A64I_S,
+  A64I_SUBSw = A64I_SUBw | A64I_S,
+
+  /* FP */
+  A64I_ADDd = 0x5ee08400,
+  A64I_FMADDd = 0x1f400000,
+  A64I_STRd = 0xfd000000, /* str d0,[x0] */
+
+  /* assembler aliases */
+  A64I_CMPw = A64I_SUBSw | A64F_D (RID_ZERO),
+  A64I_CMPx = A64I_SUBSx | A64F_D (RID_ZERO),
+  A64I_CMNx = A64I_ADDSx | A64F_D (RID_ZERO),
+
+  /* fields */
+  A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
 } A64Ins;
 
 #endif
