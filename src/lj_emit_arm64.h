@@ -137,7 +137,7 @@ static void emit_lsptr(ASMState *as, A64Ins ai, Reg r, void *p)
 static void emit_branch(ASMState *as, A64Ins ai, MCode *target)
 {
   MCode *p = as->mcp;
-  ptrdiff_t delta = target - p;
+  ptrdiff_t delta = target - (p - 1);
   lua_assert(((delta + 0x02000000) >> 26) == 0);
   *--p = ai | ((uint32_t)delta & 0x00ffffffu);
   as->mcp = p;
@@ -146,7 +146,7 @@ static void emit_branch(ASMState *as, A64Ins ai, MCode *target)
 static void emit_cond_branch(ASMState *as, A64CC cond, MCode *target)
 {
   MCode *p = as->mcp;
-  ptrdiff_t delta = target - p;
+  ptrdiff_t delta = target - (p - 1);
   lua_assert(((delta + 0x40000) >> 19) == 0);
   *--p = A64I_Bcond | (((uint32_t)delta & 0x7ffff)<<5) | cond;
   as->mcp = p;
