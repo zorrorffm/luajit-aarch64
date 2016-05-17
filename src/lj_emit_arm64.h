@@ -115,10 +115,15 @@ static void emit_lso(ASMState *as, A64Ins ai, Reg rd, Reg rn, int32_t ofs)
 {
   /* !!!TODO ARM emit_lso combines LDR/STR pairs into LDRD/STRD, something
      similar possible here? */
-  /* !!!TODO support STUR encodings, these ranges don't match emit_arm64... */
-  lua_assert(ofs >= 0 && ofs <= 4096 && (ofs&3) == 0);
+  /* !!!TODO 4096 is ok for LDRB, but is scaled for bigger loads */
+  lua_assert(ofs >= -256 && ofs <= 4096 && (ofs&3) == 0);
   //if (ofs < 0) ofs = -ofs; else ai |= ARMI_LS_U;
-  *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A(ofs >> 3);
+  if (ofs >= 0) {
+    *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A(ofs >> 3);
+  } else {
+    ai ^= A64I_LS_U;
+    *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A_U(ofs & 0x1ff);
+  }
 }
 
 static void emit_lsptr(ASMState *as, A64Ins ai, Reg r, void *p)
@@ -139,7 +144,7 @@ static void emit_branch(ASMState *as, A64Ins ai, MCode *target)
   MCode *p = as->mcp;
   ptrdiff_t delta = target - (p - 1);
   lua_assert(((delta + 0x02000000) >> 26) == 0);
-  *--p = ai | ((uint32_t)delta & 0x00ffffffu);
+  *--p = ai | ((uint32_t)delta & 0x03ffffffu);
   as->mcp = p;
 }
 
