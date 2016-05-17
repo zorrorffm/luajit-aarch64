@@ -44,7 +44,7 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   if (mxp + 4*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
   /* str lr, [sp]; bl ->vm_exit_handler; .long DISPATCH_address, group. */
-  *mxp++ = A64I_STR|A64F_D(RID_LR)|A64F_N(RID_SP);
+  *mxp++ = A64I_STRd|A64F_D(RID_LR)|A64F_N(RID_SP);
   *mxp = A64I_BL|(((MCode *)(void *)lj_vm_exit_handler-mxp)&0x03ffffffu);
   mxp++;
   *mxp++ = (MCode)i32ptr(J2GG(as->J)->dispatch);  /* DISPATCH address */
@@ -78,13 +78,13 @@ static void asm_guardcc(ASMState *as, A64CC cc)
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
     *p = A64I_BL | ((target-p) & 0x03ffffffu);
-    emit_cond_branch(as, cc^1, p); /* branch to self, patched in asm_loop_fixup */
+    emit_cond_branch(as, cc^1, p-1); /* branch to self, patched in asm_loop_fixup */
     return;
   }
   /* ARM64 doesn't have conditional BL, so we emit an unconditional BL
      and branch around it with the opposite condition */
   emit_branch(as, A64I_BL, target);
-  emit_cond_branch(as, cc^1, p+1);
+  emit_cond_branch(as, cc^1, p);
 }
 
 /* -- Operand fusion ------------------------------------------------------ */
@@ -313,8 +313,8 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
     emit_opk(as, A64I_CMPw, 0, key,
              (int32_t)ir_knum(irkey)->u32.lo, allow);
   } else {
-    emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, type,
-             (int32_t)ir_knum(irkey)->u32.hi, allow);
+    lua_todo(); // following line is probably nonsense, no thought used...
+    emit_ccmpr(as, A64I_CCMPw, CC_EQ, 0, type, key);
     emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(irkey->t), allow);
   }
   emit_lso(as, A64I_LDRw, type, idx, kofs+4); /* !!!TODO w or x */
@@ -344,13 +344,13 @@ static void asm_strref(ASMState *as, IRIns *ir)
 static A64Ins asm_fxloadins(IRIns *ir)
 {
   switch (irt_type(ir->t)) {
-  case IRT_I8: return /*ARMI_LDRSB*/0;
-  case IRT_U8: return /*ARMI_LDRB*/0;
-  case IRT_I16: return /*ARMI_LDRSH*/0;
-  case IRT_U16: return /*ARMI_LDRH*/0;
-  case IRT_NUM: lua_assert(!LJ_SOFTFP); return /*ARMI_VLDR_D*/0;
-  case IRT_FLOAT: if (!LJ_SOFTFP) return /*ARMI_VLDR_S*/0;
-  default: return /*ARMI_LDR*/0;
+  case IRT_I8: return A64I_LDRBw ^ A64I_LS_S;
+  case IRT_U8: return A64I_LDRBw;
+  case IRT_I16: return A64I_LDRHw ^ A64I_LS_S;
+  case IRT_U16: return A64I_LDRHw;
+  case IRT_NUM: return A64I_LDRd;
+  case IRT_FLOAT: lua_unimpl(); return /*ARMI_VLDR_S*/0;
+  default: return A64I_LDRx; /* !!!TODO w or x? */
   }
 }
 
@@ -472,12 +472,12 @@ static void asm_sload(ASMState *as, IRIns *ir)
     base = ra_alloc1(as, REF_BASE, allow);
     if ((ir->op2 & IRSLOAD_CONVERT)) {
       if (t == IRT_INT) {
-        lua_todo();
+        lua_unimpl();
         //emit_dn(as, ARMI_VMOV_R_S, dest, (tmp & 15));
         //emit_dm(as, ARMI_VCVT_S32_F64, (tmp & 15), (tmp & 15));
         t = IRT_NUM;  /* Check for original type. */
       } else {
-        lua_todo();
+        lua_unimpl();
         //emit_dm(as, ARMI_VCVT_F64_S32, (dest & 15), (dest & 15));
         //emit_dn(as, ARMI_VMOV_S_R, tmp, (dest & 15));
         t = IRT_INT;  /* Check for original type. */

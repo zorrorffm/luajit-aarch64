@@ -136,6 +136,7 @@ typedef enum A64CC {
 #define A64F_D(r)	(r)
 #define A64F_N(r)       ((r) << 5)
 #define A64F_A(r)       ((r) << 10)
+#define A64F_A_U(r)     ((r) << 12)
 #define A64F_M(r)       ((r) << 16)
 #define A64F_U16(x)	((x) << 5)
 #define A64F_S26(x)	(x)
@@ -151,11 +152,12 @@ typedef enum A64Ins {
   A64I_MOVK_48x = 0xf2e00000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
+  A64I_LDRBw = 0x39400000,
+  A64I_LDRHw = 0x79400000,
   A64I_LDRw = 0xb9400000,
   A64I_LDRx = 0xf9400000,
   A64I_LDRLw = 0x18000000,
   A64I_LDRLx = 0x58000000,
-  A64I_STR = 0xf9000000,
   A64I_NOP = 0xd503201f,
   A64I_ADDw = 0x0b000000,
   A64I_ADDx = 0x8b000000,
@@ -167,6 +169,8 @@ typedef enum A64Ins {
   A64I_BR = 0xd61f0000,
   A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
   A64I_CCMPx = 0xfa400000, /* ccmp x0,x0,#0,eq */
+  A64I_STRBw = 0x39000000, /* strb w0,[x0] */
+  A64I_STRHw = 0x79000000, /* strh w0,[x0] */
   A64I_STRw = 0xb9000000, /* str w0,[x0] */
   A64I_STRx = 0xf9000000, /* str x0,[x0] */
   A64I_SUBx = 0xcb000000,
@@ -187,6 +191,8 @@ typedef enum A64Ins {
 
   /* fields */
   A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
+  A64I_LS_U = 0x01000000, /* A64I_LDRx^A64I_LS_U => LDUR x0,[x0] */
+  A64I_LS_S = 0x00100000, /* A64I_LDRBw^A64I_LS_S => LDRSB w0,[x0] */
 } A64Ins;
 
 #endif
