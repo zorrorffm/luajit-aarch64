@@ -3521,7 +3521,16 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
 
   case BC_JLOOP:
     |.if JIT
-    |  NYI
+    |  // RA = base (ignored), RC = traceno
+    |  add TMP0, GL, #GG_G2DISP
+    |  ldr CARG1, [GL, #GL_J(trace)]
+    |   mov CARG2, #0  // Traces on ARM don't store the trace number, so use 0.
+    |  ldr TRACE:RC, [CARG1, RC, lsl #3] // !!!TODO w/lsl#2 or x/lsl#3 or other?
+    |   st_vmstate CARG2
+    |  ldr RA, TRACE:RC->mcode
+    |   str BASE, [GL, #offsetof(global_State, jit_base)]
+    |   str L, GL->tmpbuf.L
+    |  br RA
     |.endif
     break;
 

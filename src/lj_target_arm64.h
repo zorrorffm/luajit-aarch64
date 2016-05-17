@@ -143,10 +143,12 @@ typedef enum A64CC {
 #define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
 #define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
 
-#define A64F_B_CC(insn, cc)	(insn ^ cc)
-
 typedef enum A64Ins {
   A64I_S = 0x20000000,
+  A64I_MOVK_16w = 0x72a00000,
+  A64I_MOVK_16x = 0xf2a00000,
+  A64I_MOVK_32x = 0xf2c00000,
+  A64I_MOVK_48x = 0xf2e00000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
   A64I_LDRw = 0xb9400000,
@@ -160,6 +162,7 @@ typedef enum A64Ins {
   A64I_ADDSw = 0x0b000000 | A64I_S,
   A64I_ADDSx = 0x8b000000 | A64I_S,
   A64I_B = 0x14000000,
+  A64I_Bcond = 0x54000000,
   A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
   A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
@@ -175,6 +178,7 @@ typedef enum A64Ins {
   A64I_ADDd = 0x5ee08400,
   A64I_FMADDd = 0x1f400000,
   A64I_STRd = 0xfd000000, /* str d0,[x0] */
+  A64I_LDRd = 0xfd400000, /* ldr d0,[x0] */
 
   /* assembler aliases */
   A64I_CMPw = A64I_SUBSw | A64F_D (RID_ZERO),

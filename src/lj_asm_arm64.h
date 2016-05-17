@@ -78,13 +78,13 @@ static void asm_guardcc(ASMState *as, A64CC cc)
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
     *p = A64I_BL | ((target-p) & 0x03ffffffu);
-    emit_branch(as, A64F_B_CC(A64I_B, cc^1), p+1);
+    emit_cond_branch(as, cc^1, p+1);
     return;
   }
   /* ARM64 doesn't have conditional BL, so we emit an unconditional BL
      and branch around it with the opposite condition */
   emit_branch(as, A64I_BL, target);
-  emit_branch(as, A64F_B_CC(A64I_B, cc^1), p+1);
+  emit_cond_branch(as, cc^1, p+1);
 }
 
 /* -- Operand fusion ------------------------------------------------------ */
@@ -157,7 +157,7 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
     return A64F_M(ir->r);
   } else if (irref_isk(ref)) {
     uint32_t k = emit_isk12(ai, ir->i);
-    if (k == -1)
+    if (k != -1)
       return k;
   } else if (mayfuse(as, ref)) {
 #if 0
@@ -286,7 +286,6 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
 {
   IRIns *kslot = IR(ir->op2);
   IRIns *irkey = IR(kslot->op1);
-printf("%p\n",irkey->ptr.ptr64);
   int32_t ofs = (int32_t)(kslot->op2 * sizeof(Node));
   int32_t kofs = ofs + (int32_t)offsetof(Node, key);
   Reg dest = (ra_used(ir) || ofs > 4095) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
@@ -314,7 +313,6 @@ printf("%p\n",irkey->ptr.ptr64);
     emit_opk(as, A64I_CMPw, 0, key,
              (int32_t)ir_knum(irkey)->u32.lo, allow);
   } else {
-printf("%p\n",irkey->ptr.ptr64);
     emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, type,
              (int32_t)ir_knum(irkey)->u32.hi, allow);
     emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(irkey->t), allow);
@@ -403,7 +401,27 @@ static void asm_xstore_(ASMState *as, IRIns *ir, int32_t ofs)
 
 static void asm_ahuvload(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  IRType t = irt_type(ir->t);
+  Reg dest = RID_NONE, type = RID_NONE, idx;
+  RegSet allow = RSET_GPR;
+  int32_t ofs = 0;
+  if (ra_used(ir)) {
+    lua_assert(irt_isnum(ir->t) || irt_isint(ir->t) || irt_isaddr(ir->t));
+    dest = ra_dest(as, ir, (t == IRT_NUM) ? RSET_FPR : allow);
+    rset_clear(allow, dest);
+  }
+  idx = asm_fuseahuref(as, ir->op1, &ofs, allow,
+                       (t == IRT_NUM) ? 1024 : 4096);
+  type = RID_TMP;
+  asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
+  emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
+  if (ra_hasreg(dest)) {
+    if (t == IRT_NUM)
+      emit_lso(as, A64I_LDRd, dest, idx, ofs);
+    else
+      emit_lso(as, A64I_LDRw, dest, idx, ofs);
+  }
+  emit_lso(as, A64I_LDRw, type, idx, ofs+4);
 }
 
 static void asm_ahustore(ASMState *as, IRIns *ir)
@@ -433,7 +451,72 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
 
 static void asm_sload(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  int32_t ofs = 8*((int32_t)ir->op1-1) + ((ir->op2 & IRSLOAD_FRAME) ? 4 : 0);
+  IRType t = irt_type(ir->t);
+  Reg dest = RID_NONE, type = RID_NONE, base;
+  RegSet allow = RSET_GPR;
+  lua_assert(!(ir->op2 & IRSLOAD_PARENT));  /* Handled by asm_head_side(). */
+  lua_assert(irt_isguard(ir->t) || !(ir->op2 & IRSLOAD_TYPECHECK));
+  if ((ir->op2 & IRSLOAD_CONVERT) && irt_isguard(ir->t) && t == IRT_INT) {
+    dest = ra_scratch(as, RSET_FPR);
+    asm_tointg(as, ir, dest);
+    t = IRT_NUM;  /* Continue with a regular number type check. */
+  } else
+  if (ra_used(ir)) {
+    Reg tmp = RID_NONE;
+    if ((ir->op2 & IRSLOAD_CONVERT))
+      tmp = ra_scratch(as, t == IRT_INT ? RSET_FPR : RSET_GPR);
+    lua_assert(irt_isnum(ir->t) || irt_isint(ir->t) || irt_isaddr(ir->t));
+    dest = ra_dest(as, ir, (t == IRT_NUM) ? RSET_FPR : allow);
+    rset_clear(allow, dest);
+    base = ra_alloc1(as, REF_BASE, allow);
+    if ((ir->op2 & IRSLOAD_CONVERT)) {
+      if (t == IRT_INT) {
+        lua_todo();
+        //emit_dn(as, ARMI_VMOV_R_S, dest, (tmp & 15));
+        //emit_dm(as, ARMI_VCVT_S32_F64, (tmp & 15), (tmp & 15));
+        t = IRT_NUM;  /* Check for original type. */
+      } else {
+        lua_todo();
+        //emit_dm(as, ARMI_VCVT_F64_S32, (dest & 15), (dest & 15));
+        //emit_dn(as, ARMI_VMOV_S_R, tmp, (dest & 15));
+        t = IRT_INT;  /* Check for original type. */
+      }
+      dest = tmp;
+    }
+    goto dotypecheck;
+  }
+  base = ra_alloc1(as, REF_BASE, allow);
+dotypecheck:
+  rset_clear(allow, base);
+  if ((ir->op2 & IRSLOAD_TYPECHECK)) {
+    if (ra_noreg(type)) {
+      if (ofs < 256 && ra_hasreg(dest) && (dest & 1) == 0 &&
+          rset_test((as->freeset & allow), dest+1)) {
+        type = dest+1;
+        ra_modified(as, type);
+      } else {
+        type = RID_TMP;
+      }
+    }
+    asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
+    emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
+  }
+  if (ra_hasreg(dest)) {
+    if (t == IRT_NUM) {
+      if (ofs < 1024) /* !!!TODO check 1024 */ {
+        emit_lso(as, A64I_LDRd, dest, base, ofs);
+      } else {
+        /* !!!TODO w or x */
+        if (ra_hasreg(type)) emit_lso(as, A64I_LDRw, type, base, ofs+4);
+        emit_lso(as, A64I_LDRd, dest, RID_TMP, 0);
+        emit_opk(as, A64I_ADDx, RID_TMP, base, ofs, allow);
+        return;
+      }
+    } else
+      emit_lso(as, A64I_LDRx, dest, base, ofs); /* !!!!TODO w or x */
+  }
+  if (ra_hasreg(type)) emit_lso(as, A64I_LDRx, type, base, ofs+4);
 }
 
 /* -- Allocations --------------------------------------------------------- */
@@ -761,13 +844,23 @@ static void asm_loop_fixup(ASMState *as)
 /* Reload L register from g->cur_L. */
 static void asm_head_lreg(ASMState *as)
 {
-    lua_unimpl();
+  IRIns *ir = IR(ASMREF_L);
+  if (ra_used(ir)) {
+    Reg r = ra_dest(as, ir, RSET_GPR);
+    emit_getgl(as, r, cur_L);
+    ra_evictk(as);
+  }
 }
 
 /* Coalesce BASE register for a root trace. */
 static void asm_head_root_base(ASMState *as)
 {
-    lua_unimpl();
+  IRIns *ir;
+  asm_head_lreg(as);
+  ir = IR(REF_BASE);
+  if (ra_hasreg(ir->r) && (rset_test(as->modset, ir->r) || irt_ismarked(ir->t)))
+    ra_spill(as, ir);
+  ra_destreg(as, ir, RID_BASE);
 }
 
 /* Coalesce BASE register for a side trace. */
