@@ -78,7 +78,7 @@ static void asm_guardcc(ASMState *as, A64CC cc)
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
     *p = A64I_BL | ((target-p) & 0x03ffffffu);
-    emit_cond_branch(as, cc^1, p+1);
+    emit_cond_branch(as, cc^1, p); /* branch to self, patched in asm_loop_fixup */
     return;
   }
   /* ARM64 doesn't have conditional BL, so we emit an unconditional BL
@@ -832,9 +832,12 @@ static void asm_loop_fixup(ASMState *as)
   MCode *p = as->mctop;
   MCode *target = as->mcp;
   if (as->loopinv) {  /* Inverted loop branch? */
+    ptrdiff_t delta = target - (p - 2);
+    lua_assert(((delta + 0x40000) >> 19) == 0);
     /* asm_guardcc already inverted the bcc and patched the final bl. */
-    p[-2] |= ((uint32_t)(target-p+2) & 0x00ffffffu);
+    p[-2] |= ((uint32_t)delta & 0x7ffff) << 5;
   } else {
+    lua_unimpl(); /* what's going on here? */
     p[-1] = A64I_B | ((uint32_t)((target-p)+1) & 0x03ffffffu);
   }
 }
