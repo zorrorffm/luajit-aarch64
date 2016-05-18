@@ -111,18 +111,54 @@ rn, int32_t k, RegSet allow)
  
 /* -- Emit loads/stores --------------------------------------------------- */
 
+typedef enum {
+  OFS_INVALID,
+  OFS_UNSCALED,
+  OFS_SCALED_0,
+  OFS_SCALED_1,
+  OFS_SCALED_2,
+  OFS_SCALED_3,
+} ofs_type;
+
+static ofs_type check_offset(A64Ins ai, int32_t ofs)
+{
+  int scale;
+  switch (ai)
+  {
+  case A64I_LDRBw: scale = 0; break;
+  case A64I_STRBw: scale = 0; break;
+  case A64I_LDRHw: scale = 1; break;
+  case A64I_STRHw: scale = 1; break;
+  case A64I_LDRw: scale = 2; break;
+  case A64I_STRw: scale = 2; break;
+  case A64I_LDRx: scale = 3; break;
+  case A64I_STRx: scale = 3; break;
+  default: lua_assert(!"invalid instruction in check_offset");
+  }
+
+  /* do we need to use unscaled op? */
+  if (ofs < 0 || (ofs & ((1<<scale)-1)))
+  {
+    /* unaligned, so need to use u variant (eg ldur) */
+    return (ofs >= -256 && ofs <= 255) ? OFS_UNSCALED : OFS_INVALID;
+  } else {
+    return (ofs >= 0 && ofs <= (4096<<scale)) ? OFS_SCALED_0 + scale : OFS_INVALID;
+  }
+}
+
 static void emit_lso(ASMState *as, A64Ins ai, Reg rd, Reg rn, int32_t ofs)
 {
   /* !!!TODO ARM emit_lso combines LDR/STR pairs into LDRD/STRD, something
      similar possible here? */
-  /* !!!TODO 4096 is ok for LDRB, but is scaled for bigger loads */
-  lua_assert(ofs >= -256 && ofs <= 4096 && (ofs&3) == 0);
-  //if (ofs < 0) ofs = -ofs; else ai |= ARMI_LS_U;
-  if (ofs >= 0) {
-    *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A(ofs >> 3);
-  } else {
+  ofs_type ot = check_offset(ai, ofs);
+  lua_assert(ot != OFS_INVALID);
+  if (ot == OFS_UNSCALED) {
     ai ^= A64I_LS_U;
     *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A_U(ofs & 0x1ff);
+  } else {
+    int32_t ofs_field;
+    ofs_field = ofs >> (ot - OFS_SCALED_0);
+    *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_A(ofs_field);
   }
 }
 
