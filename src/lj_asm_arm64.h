@@ -41,6 +41,7 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
 {
   MCode *mxp = as->mcbot;
   int i;
+  /* !!!TODO i32ptr looks suspect for 64bit VM */
   if (mxp + 4*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
   /* str lr, [sp]; bl ->vm_exit_handler; .long DISPATCH_address, group. */
@@ -50,7 +51,7 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   *mxp++ = (MCode)i32ptr(J2GG(as->J)->dispatch);  /* DISPATCH address */
   *mxp++ = group*EXITSTUBS_PER_GROUP;
   for (i = 0; i < EXITSTUBS_PER_GROUP; i++)
-    *mxp++ = A64I_B|((-6-i)&0x00ffffffu);
+    *mxp++ = A64I_B|((-4-i)&0x03ffffffu);
   lj_mcode_sync(as->mcbot, mxp);
   lj_mcode_commitbot(as->J, mxp);
   as->mcbot = mxp;
@@ -110,6 +111,7 @@ static int32_t asm_fuseabase(ASMState *as, IRRef ref)
 static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
 			  int lim)
 {
+  /* !!!TODO replace lim parameter with A64Ins, and use check_offset instead */
   /* !!!TODO NFI what this does, the comment about LDRD below looks dodgy */
   lua_todo();
   IRIns *ir = IR(ref);
@@ -451,7 +453,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
 
 static void asm_sload(ASMState *as, IRIns *ir)
 {
-  int32_t ofs = 8*((int32_t)ir->op1-1) + ((ir->op2 & IRSLOAD_FRAME) ? 4 : 0);
+  int32_t ofs = 8*((int32_t)ir->op1-2) + ((ir->op2 & IRSLOAD_FRAME) ? 4 : 0);
   IRType t = irt_type(ir->t);
   Reg dest = RID_NONE, type = RID_NONE, base;
   RegSet allow = RSET_GPR;
@@ -504,7 +506,7 @@ dotypecheck:
   }
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM) {
-      if (ofs < 1024) /* !!!TODO check 1024 */ {
+      if (check_offset(A64I_LDRd, ofs)) {
         emit_lso(as, A64I_LDRd, dest, base, ofs);
       } else {
         /* !!!TODO w or x */
