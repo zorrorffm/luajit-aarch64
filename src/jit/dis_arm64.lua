@@ -28,9 +28,8 @@ local map_adr = { -- PC-rel. addressing
 }
 
 local map_addsubi = { -- Add/subtract immediate
-  shift = 29, mask = 7,
-  [0] = "addDpNIw", "addsDpNIw", "subDpNIw", "subsDpNIw",
-  "addDpNIx", "addsDpNIx", "subDpNIx", "subsDpNIx",
+  shift = 29, mask = 3,
+  [0] = "addDpNIg", "addsDpNIg", "subDpNIg", "subsDpNIg",
 }
 
 local map_logi = { -- Logical immediate
@@ -39,13 +38,13 @@ local map_logi = { -- Logical immediate
     shift = 22, mask = 1,
     [0] = {
       shift = 29, mask = 3,
-      [0] = "andDpNiw", "orrDpNiw", "eorDpNiw", "andsDNiw"
+      [0] = "andDpNig", "orrDpNig", "eorDpNig", "andsDNig"
     },
     false -- unallocated
   },
   {
     shift = 29, mask = 3,
-    [0] = "andDpNix", "orrDpNix", "eorDpNix", "andsDNix"
+    [0] = "andDpNig", "orrDpNig", "eorDpNig", "andsDNig"
   }
 }
 
@@ -55,12 +54,12 @@ local map_movwi = { -- Move wide immediate
     shift = 22, mask = 1,
     [0] = {
       shift = 29, mask = 3,
-      [0] = "movnDWw", false, "movzDWw", "movkDWw"  -- TODO: check DWg or DWRg
+      [0] = "movnDWg", false, "movzDWg", "movkDWg"
     }, false -- unallocated
   },
   {
     shift = 29, mask = 3,
-    [0] = "movnDWx", false, "movzDWx", "movkDWx"
+    [0] = "movnDWg", false, "movzDWg", "movkDWg"
   },
 }
 
@@ -71,12 +70,10 @@ local map_bitf = { -- Bitfield
     [0] = {
       shift = 29, mask = 3,
       [0] = "sbfmDN12w", "bfmDN12w", "ubfmDN12w", false
-    },
-    false
+    }
   },
   {
     shift = 22, mask = 1,
-    [0] = false,
     {
       shift = 29, mask = 3,
       [0] = "sbfmDN12x", "bfmDN12x", "ubfmDN12x", false
@@ -91,53 +88,51 @@ local map_logsr = { -- Logical (shifted register)
     [0] = {
       shift = 29, mask = 3,
       [0] = {
-        shift = 21, mask = 1,
-        [0] = {
-          shift = 22, mask = 3,
-          [0] = "andDNMSg", "andDNMSg", "andDNMSg", "andDNMg"
-        },
-        {
-          shift = 22, mask = 3,
-          [0] = "bicDNMSg", "bicDNMSg", "bicDNMSg", "bicDNMg"
-        }
+        shift = 21, mask = 7,
+        [0] = "andDNMSg", "bicDNMSg", "andDNMSg", "bicDNMSg",
+        "andDNMSg", "bicDNMSg", "andDNMg", "bicDNMg"
       },
       {
-        shift = 21, mask = 1,
-        [0] = {
-          shift = 22, mask = 3,
-          [0] = "orrDNMSg", "orrDNMSg", "orrDNMSg", "orrDNMg"
-        },
-        {
-          shift = 22, mask = 3,
-          [0] = "ornDNMSg", "ornDNMSg", "ornDNMSg", "ornDNMg"
-        }
+        shift = 21, mask = 7,
+        [0] = "orrDNMSg", "ornDNMSg", "orrDNMSg", "ornDNMSg",
+        "orrDNMSg", "ornDNMSg", "orrDNMg", "ornDNMg"
       },
       {
-        shift = 21, mask = 1,
-        [0] = {
-          shift = 22, mask = 3,
-          [0] = "eorDNMSg", "eorDNMSg", "eorDNMSg", "eorDNMg"
-        },
-        {
-          shift = 22, mask = 3,
-          [0] = "eonDNMSg", "eonDNMSg", "eonDNMSg", "eonDNMg"
-        }
+        shift = 21, mask = 7,
+        [0] = "eorDNMSg", "eonDNMSg", "eorDNMSg", "eonDNMSg",
+        "eorDNMSg", "eonDNMSg", "eorDNMg", "eonDNMg"
       },
       {
-        shift = 21, mask = 1,
-        [0] = {
-          shift = 22, mask = 3,
-          [0] = "andsDNMSg", "andsDNMSg", "andsDNMSg", "andsDNMg"
-        },
-        {
-          shift = 22, mask = 3,
-          [0] = "bicsDNMSg", "bicsDNMSg", "bicsDNMSg", "bicsDNMg"
-        }
+        shift = 21, mask = 7,
+        [0] = "andsDNMSg", "bicsDNMSg", "andsDNMSg", "bicsDNMSg",
+        "andsDNMSg", "bicsDNMSg", "andsDNMg", "bicsDNMg"
       }
     },
     false -- unallocated
   },
-  false -- 64 bit operations not implemented
+  {
+    shift = 29, mask = 3,
+    [0] = {
+      shift = 21, mask = 7,
+      [0] = "andDNMSg", "bicDNMSg", "andDNMSg", "bicDNMSg",
+      "andDNMSg", "bicDNMSg", "andDNMg", "bicDNMg"
+    },
+    {
+      shift = 21, mask = 7,
+      [0] = "orrDNMSg", "ornDNMSg", "orrDNMSg", "ornDNMSg",
+      "orrDNMSg", "ornDNMSg", "orrDNMg", "ornDNMg"
+    },
+    {
+      shift = 21, mask = 7,
+      [0] = "eorDNMSg", "eonDNMSg", "eorDNMSg", "eonDNMSg",
+      "eorDNMSg", "eonDNMSg", "eorDNMg", "eonDNMg"
+    },
+    {
+      shift = 21, mask = 7,
+      [0] = "andsDNMSg", "bicsDNMSg", "andsDNMSg", "bicsDNMSg",
+      "andsDNMSg", "bicsDNMSg", "andsDNMg", "bicsDNMg"
+    }
+  }
 }
 
 local map_assh = {
@@ -165,71 +160,137 @@ local map_assh = {
     },
     false -- unallocated
   },
-  false -- 64 bit operations not implemented
+  {
+    shift = 29, mask = 3,
+    [0] = {
+      shift = 22, mask = 3,
+      [0] = "addDNMSg", "addDNMSg", "addDNMSg", "addDNMg"
+    },
+    {
+      shift = 22, mask = 3,
+      [0] = "addsDNMSg", "addsDNMSg", "addsDNMSg", "addsDNMg"
+    },
+    {
+      shift = 22, mask = 3,
+      [0] = "subDNMSg", "subDNMSg", "subDNMSg", "subDNMg"
+    },
+    {
+      shift = 22, mask = 3,
+      [0] = "subsDNMSg", "subsDNMSg", "subsDNMSg", "subsDNMg"
+    }
+  }
 }
 
 local map_addsubsh = { -- Add/subtract (shifted register)
   shift = 22, mask = 3,
-  [0] = map_assh, map_assh, map_assh, false
+  [0] = map_assh, map_assh, map_assh
 }
 
 local map_asex = {
   shift = 22, mask = 3,
   [0] = {
-    shift = 31, mask = 1,  -- is this check needed?
-    [0] = {
-      shift = 29, mask = 3,
-      [0] = "addDNMXg", "addsDNMXg", "subDNMXg", "subsDNMXg"
-    }, 
-    false
-  }, 
-  false, false, false
+    shift = 29, mask = 3,
+    [0] = "addDNMXg", "addsDNMXg", "subDNMXg", "subsDNMXg",
+  }
 }
-
 
 local map_addsubex = { -- Add/subtract (extended register)
   shift = 10, mask = 7,
   [0] = map_asex, map_asex, map_asex, map_asex,
-  map_asex, false, false, false
+  map_asex
 }
 
 local map_addsubc = { -- Add/subtract (with carry)
   shift = 10, mask = 63,
   [0] = {
-    shift = 29, mask = 7,
-    [0] = "adcDNMw", "adcsDNMw", "sbcDNMw", "sbcsDNMw",
-    "adcDNMx", "adcsDNMx", "sbcDNMx", "sbcsDNMx",
-  }        
+    shift = 29, mask = 3,
+    [0] = "adcDNMg", "adcsDNMg", "sbcDNMg", "sbcsDNMg",
+  }
 }
 
 local map_ccompr = { -- Conditional compare (register)
-
+  shift = 4, mask = 1,
+  [0] = {
+    shift = 10, mask = 1,
+    [0] = {
+      shift = 29, mask = 3,
+      "ccmnNMVCg", false, "ccmpNMVCg",
+    }
+  }
 }
 
 local map_ccompi = { -- Conditional compare (immediate)
-
+  shift = 4, mask = 1,
+  [0] = {
+    shift = 10, mask = 1,
+    [0] = {
+      shift = 29, mask = 3,
+      "ccmnN5VCg", false, "ccmpN5VCg",
+    }
+  }
 }
 
 local map_csel = { -- Conditional select
-
+  shift = 11, mask = 1,
+  [0] = {
+    shift = 10, mask = 1,
+    [0] = {
+      shift = 29, mask = 3,
+      [0] = "cselDNMCg", false, "csinvDNMCg", false,
+    },
+    {
+      shift = 29, mask = 3,
+      [0] = "csincDNMCg", false, "csnegDNMCg", false,
+    }
+  }
 }
 
 local map_data1s = { -- Data processing (1 source)
-
+  shift = 29, mask = 1,
+  [0] = {
+    shift = 10, mask = 0x7ff,
+    [0] = "rbitDNg", "rev16DNg", "revDNg", false,
+    "clzDNg", "clsDNg"
+  }
 }
 
 local map_data2s = { -- Data processing (2 source)
-
+  shift = 29, mask = 1,
+  [0] = {
+    shift = 10, mask = 63,
+    false, "udivDNMg", "sdivDNMg", false, false, false, false, "lslvDNMg",
+    "lsrvDNMg", "asrvDNMg", "rorvDNMg"  -- TODO: crc32*
+  }
 }
 
 local map_data3s = { -- Data processing (3 source)
-
+  shift = 29, mask = 7,
+  [0] = { -- TODO: Can this be merged with 64-bit?
+    shift = 21, mask = 7,
+    [0] = {
+      shift = 15, mask = 1,
+      [0] = "maddDNMAg", "msubDNMAg"
+    }
+  }, false, false, false,
+  {
+    shift = 15, mask = 1,
+    [0] = {
+      shift = 21, mask = 7,
+      [0] = "maddDNMAg", "smaddlDxNMwAx", "smulhDNMx", false,
+      false, "umaddlDxNMwAx", "umulhDNMx"
+    },
+    {
+      shift = 21, mask = 7,
+      [0] = "msubDNMAg", "smsublDxNMwAx", false, false,
+      false, "umsublDxNMwAx"
+    }
+  }
 }
 
 
 local map_datai = { -- Data processing - immediate
   shift = 23, mask = 7,
-  [0] = map_adr, map_adr, map_addsubi, map_addsubi,
+  [0] = map_adr, map_adr, map_addsubi, false,
   map_logi, map_movwi, map_bitf,
   {
     shift = 15, mask = 0x1c0c1,
@@ -249,7 +310,7 @@ local map_datar = { -- Data processing - register
   },
   {
     shift = 21, mask = 15,
-    [0] = map_addsubc, false, 
+    [0] = map_addsubc, false,
     {
       shift = 11, mask = 1,
       [0] = map_ccompr, map_ccompi
@@ -264,16 +325,113 @@ local map_datar = { -- Data processing - register
   }
 }
 
+local map_lrl = { -- Load register(literal)
+  shift = 26, mask = 1,
+  [0] = {
+    shift = 30, mask = 3,
+    [0] = "ldrDwB", "ldrDxB", "ldrswDxB"
+  },
+  {
+    shift = 30, mask = 3,
+    [0] = "ldrDsB", "ldrDdB"
+  }
+}
+
+local map_lsri = {
+  shift = 21, mask = 1,
+  [0] = {
+    shift = 10, mask = 1,
+    { -- Load/store register (immediate pre/post-indexed)
+      shift = 30, mask = 3,
+      [0] = {
+        shift = 26, mask = 1,
+        [0] = {
+          shift = 22, mask = 3,
+          [0] = "strbDwL", "ldrbDwL", "ldrsbDxL", "ldrsbDwL"
+        }
+      },
+      {
+        shift = 26, mask = 1,
+        [0] = {
+          shift = 22, mask = 3,
+          [0] = "strhDwL", "ldrhDwL", "ldrshDxL", "ldrshDwL"
+        }
+      },
+      {
+        shift = 26, mask = 1,
+        [0] = {
+          shift = 22, mask = 3,
+          [0] = "strDwL", "ldrDwL", "ldrswDxL"
+        },
+        {
+          shift = 22, mask = 3,
+          [0] = "strDsL", "ldrDsL"
+        }
+      },
+      {
+        shift = 26, mask = 1,
+        [0] = {
+          shift = 22, mask = 3,
+          [0] = "strDxL", "ldrDxL"
+        },
+        {
+          shift = 22, mask = 3,
+          [0] = "strDdL", "ldrDdL"
+        }
+      }
+    }
+  }
+}
+
 local map_ls = { -- Loads and stores
+  shift = 23, mask = 0x63,
+  [0x20] = map_lrl, [0x21] = map_lrl,
+  [0x60] = map_lsri, [0x61] = map_lsri
 
 }
 
-local map_datafp = { --Data processing - SIMD and FP
-
+local map_datafp = { -- Data processing - SIMD and FP
 }
 
 local map_br = { -- Branches, exception generating and system instructions
-
+  shift = 29, mask = 7,
+  [0] = "bB",
+  { -- Compare & branch (immediate)
+    shift = 24, mask = 3,
+    [0] = "cbzDBg", "cbnzDBg", "tbzDTBw", "tbnzDTBw"
+  },
+  { -- Conditional branch (immediate)
+    shift = 24, mask = 3,
+    [0] = {
+      shift = 4, mask = 1,
+      [0] = {
+        shift = 0, mask = 15,
+        [0] = "beqB", "bneB", "bhsB", "bloB", "bmiB",
+        "bplB", "bvsB", "bvcB", "bhiB", "blsB", "bgeB",
+        "bltB", "bgtB", "bleB", "balB"  -- TODO: find better solution ?
+      }
+    }
+  }, false, "blB",
+  { -- Compare & branch (immediate)
+    shift = 24, mask = 3,
+    [0] = "cbzDBg", "cbnzDBg", "tbzDTBx", "tbnzDTBx"
+  },
+  {
+    shift = 24, mask = 3,
+    [0] = { -- Exception generation
+      shift = 0, mask = 0xe0001f,
+      [0x200000] = "brkW"
+    },
+    { -- System
+      shift = 0, mask = 0x3fffff,
+      [0x03201f] = "nop"
+    },
+    { -- Unconditional branch (register)
+      shift = 0, mask = 0xfffc1f,
+      [0x1f0000] = "brNx", [0x3f0000] = "blrNx",
+      [0x5f0000] = "retNx"
+    },
+  }
 }
 
 
@@ -288,10 +446,19 @@ local map_init = {
 
 ------------------------------------------------------------------------------
 
-local map_gpr = {
-  [0] = "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
-  "r8", "r9", "r10", "r11", "r12", "sp", "lr", "pc",
-}
+local map_regs = {}
+
+map_regs.x = {[31] = "sp"}
+for i=0,30 do map_regs.x[i] = "x"..i; end
+
+map_regs.w = {[31] = "wsp"}
+for i=0,30 do map_regs.w[i] = "w"..i; end
+
+map_regs.d = {}
+for i=0,31 do map_regs.d[i] = "d"..i; end
+
+map_regs.s = {}
+for i=0,31 do map_regs.s[i] = "s"..i; end
 
 local map_cond = {
   [0] = "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
@@ -299,6 +466,11 @@ local map_cond = {
 }
 
 local map_shift = { [0] = "lsl", "lsr", "asr", }
+
+local map_extend = {
+  [0] = "uxtb", "uxth", "uxtw", "uxtx",	"sxtb", "sxth",
+  "sxtw", "sxtx",
+}
 
 ------------------------------------------------------------------------------
 
@@ -330,6 +502,68 @@ local function unknown(ctx)
   return putop(ctx, ".long", { "0x"..tohex(ctx.op) })
 end
 
+local function match_reg(op, p, pat)
+  return map_regs[match(pat, p.."%w-([xwds])")][band(op, 31)]
+end
+
+local function parse_imm13(op)
+  local immN = band(rshift(op, 22), 1)
+  local imms = band(rshift(op, 10), 63)
+  local immr = band(rshift(op, 16), 63)
+  local is64 = band(rshift(op, 31), 1) == 1
+  local levels = 0
+  local len
+  local S, R
+  local imm, size = 0, 0
+
+  if immN == 1 then
+    len = 6
+  else
+    local nimms = bit.bnot(imms)
+    for i=5,0,-1 do
+      if band(rshift(nimms, i), 1) == 1 then len = i; break; end
+    end
+  end
+
+  for i=1,len do
+    levels = lshift(levels, 1) + 1
+  end
+
+  S = band(imms, levels)
+  R = band(immr, levels)
+  size = lshift(1, len)
+
+  for i=1,S+1 do
+    imm = lshift(imm, 1) + 1
+  end
+  if size<64 then
+    -- Note: imm is uninterrupted stream of ones, so it's safe.
+    imm = bor(rshift(imm, R), lshift(band(imm, lshift(1, R)-1), size-R))
+    for i=2,32/size do
+      imm = bor(lshift(imm, size), imm)
+    end
+    -- Note: Bitwise operations have 32-bit output.
+    imm = "#0x"..(is64 and tohex(imm):rep(2) or tohex(imm))
+  else
+    local imm2 = tohex(lshift(band(imm, pow(2,R)-1), size-32-R))
+    imm = "#0x"..imm2..tohex(rshift(imm, R))
+  end
+  return imm
+end
+
+local function parse_immpc(op, name)
+  if name == "b" or name == "bl" then
+    return arshift(lshift(op, 6), 4)
+  elseif name == "adr" or name == "adrp" then
+    local immlo = band(rshift(op, 29), 3)
+    local immhi = lshift(arshift(lshift(op, 8), 13), 2)
+    return bor(immhi, immlo)
+  elseif name == "tbz" or name == "tbnz" then
+    return lshift(arshift(lshift(op, 13), 18), 2)
+  else
+    return lshift(arshift(lshift(op, 8), 13), 2)
+  end
+end
 
 -- Disassemble a single instruction.
 local function disass_ins(ctx)
@@ -340,6 +574,7 @@ local function disass_ins(ctx)
   local suffix = ""
   local last, name, pat
   local vr
+  local map_reg
   ctx.op = op
   ctx.rel = nil
 
@@ -347,7 +582,6 @@ local function disass_ins(ctx)
   opat = map_init[band(rshift(op, 25), 15)]
   while type(opat) ~= "string" do
     if not opat then return unknown(ctx) end
-
     opat = opat[band(rshift(op, opat.shift), opat.mask)] or opat._ -- calculating index of map
   end
   name, pat = match(opat, "^([a-z0-9]*)(.*)")
@@ -357,38 +591,62 @@ local function disass_ins(ctx)
     pat = p2
   end
 
+  local rt = match(pat, "[gf]")
+  if rt then
+    if rt == "g" then
+      map_reg = band(op, 0x80000000) ~= 0 and map_regs.x or map_regs.w
+    else
+      map_reg = band(op, 0x400000) ~= 0 and map_regs.d or map_regs.s
+    end
+  end
+
   for p in gmatch(pat, ".") do
     local x = nil
     if p == "D" then
-      x = map_gpr[band(op, 31)]
+      x = rt and map_reg[band(op, 31)] or match_reg(op, p, pat)
     elseif p == "N" then
-      x = map_gpr[band(rshift(op, 5), 31)]
+      x = rt and map_reg[band(rshift(op, 5), 31)] or match_reg(op, p, pat)
     elseif p == "M" then
-      x = map_gpr[band(rshift(op, 16), 31)]
+      x = rt and map_reg[band(rshift(op, 16), 31)] or match_reg(op, p, pat)
+    elseif p == "A" then
+      x = rt and map_reg[band(rshift(op, 10), 31)] or match_reg(op, p, pat)
     elseif p == "B" then
-
+      local addr = ctx.addr + pos + parse_immpc(op, name)
+      ctx.rel = addr
+      x = "0x"..tohex(addr)
+    elseif p == "T" then
+      x = bor(band(rshift(op, 26), 32), band(rshift(op, 19), 31))
+    elseif p == "V" then
+      x = band(op, 15)
+    elseif p == "C" then
+      x = map_cond[band(rshift(op, 12), 15)]
     elseif p == "W" then
       x = band(rshift(op, 5), 0xffff) -- immediate 16
-    elseif p == "x" then
-    --  x = band(rshift(op, 16), 31) + 1
-    elseif p == "p" then
-
+    elseif p == "L" then
+      local rn = map_regs.x[band(rshift(op, 5), 31)]
+      local imm9 = arshift(lshift(op, 11), 23)
+      if band(op, 0x800) ~= 0 then
+	x = "["..rn..", #"..imm9.."]!"
+      else
+	x = "["..rn.."], #"..imm9
+      end
     elseif p == "I" then
       x = band(rshift(op, 10), 0x0fff) -- immediate 12
     elseif p == "i" then
-    -- Decode bitmask
-    elseif p == "g" then
-
+      x = parse_imm13(op)
     elseif p == "1" then
       x = band(rshift(op, 16), 63)
     elseif p == "2" then
       x = band(rshift(op, 10), 63)
-    elseif p == "w" then
-
+    elseif p == "5" then
+      x = band(rshift(op, 16), 31)
     elseif p == "S" then
-    -- shift register
+      x = map_shift[band(rshift(op, 22), 3)].." #"..band(rshift(op, 10), 63)
     elseif p == "X" then
-    -- extended reg ?
+      x = map_extend[band(rshift(op, 13), 7)].." #"..band(rshift(op, 10), 7)
+    elseif p == "g" or p == "f" or p == "x" or p == "w" or
+           p == "p" or p == "d" or p == "s" then
+      -- These are handled in D/N/M/A.
     else
       assert(false)
     end
@@ -401,7 +659,6 @@ local function disass_ins(ctx)
 
   return putop(ctx, name..suffix, operands)
 end
-
 
 ------------------------------------------------------------------------------
 
@@ -433,8 +690,8 @@ end
 
 -- Return register name for RID.
 local function regname(r)
-  if r < 16 then return map_gpr[r] end
-  return "d"..(r-16)
+  if r < 32 then return map_reg.x[r] end
+  return map_reg.d[r]
 end
 
 -- Public module functions.
