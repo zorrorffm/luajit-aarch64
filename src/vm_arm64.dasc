@@ -35,7 +35,7 @@
 |.define LREG,		x23	// Register holding lua_State (also in SAVE_L).
 |.define TISNUM,	x24	// Constant LJ_TISNUM << 47.
 |.define TISNUMhi,	x25	// Constant LJ_TISNUM << 15.
-|.define TISNIL,	x26	// Constant -1LL.
+|.define DISPATCH,	x26	// Opcode dispatch table
 |.define fp,		x29	// Yes, we have to maintain a frame pointer.
 |
 |.define ST_INTERP,	w26	// Constant -1.
@@ -350,7 +350,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr CARG3, L->maxstack
   |  cmp BASE, CARG3
   |  bhs >8
-  |   str TISNIL, [BASE], #8
+  |   movn TMP0, #~LJ_TNIL
+  |   str TMP0, [BASE], #8
   |  add RC, RC, #8
   |  b <2
   |
@@ -390,7 +391,6 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr L, SAVE_L
   |    movz TISNUM, #(LJ_TISNUM>>1)&0xffff, lsl #48
   |    movz TISNUMhi, #(LJ_TISNUM>>1)&0xffff, lsl #16
-  |    movn TISNIL, #0
   |    mov RC, #16			// 2 results: false + error message.
   |  ldr BASE, L->base
   |   ldr GL, L->glref			// Setup pointer to global state.
@@ -458,7 +458,6 @@ static void build_subroutines(BuildCtx *ctx)
   |    movz TISNUMhi, #(LJ_TISNUM>>1)&0xffff, lsl #16
   |  ldr PC, [BASE, FRAME_PC]
   |     strb wzr, L->status
-  |    movn TISNIL, #0
   |   sub RC, CARG1, BASE
   |  ands CARG1, PC, #FRAME_TYPE
   |   add RC, RC, #8
@@ -496,7 +495,6 @@ static void build_subroutines(BuildCtx *ctx)
   |    movz TISNUM, #(LJ_TISNUM>>1)&0xffff, lsl #48
   |    movz TISNUMhi, #(LJ_TISNUM>>1)&0xffff, lsl #16
   |  add PC, PC, BASE
-  |    movn TISNIL, #0
   |  sub PC, PC, RB			// PC = frame delta + frame type
   |   sub NARGS8:RC, CARG1, BASE
   |    st_vmstate ST_INTERP
@@ -551,7 +549,8 @@ static void build_subroutines(BuildCtx *ctx)
   |   ldr PC, [CARG4, #-24]		// Restore PC from [cont|PC].
   |  ldr CARG3, LFUNC:CARG3->pc
   |    add TMP0, RA, RC
-  |    str TISNIL, [TMP0, #-8]		// Ensure one valid arg.
+  |    movn TMP1, #~LJ_TNIL
+  |    str TMP1, [TMP0, #-8]		// Ensure one valid arg.
   |.if FFI
   |    bls >1
   |.endif
@@ -639,7 +638,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  sxtw CARG2, TMP1w
   |  bl extern lj_tab_getinth		// (GCtab *t, int32_t key)
   |  // Returns cTValue * or NULL.
-  |  mov TMP0, TISNIL
+  |  movn TMP0, #~LJ_TNIL
   |  cbz CRET1, ->BC_TGETR_Z
   |  ldr TMP0, [CRET1]
   |  b ->BC_TGETR_Z
@@ -975,7 +974,7 @@ static void build_subroutines(BuildCtx *ctx)
   |1:  // Field metatable must be at same offset for GCtab and GCudata!
   |  ldr TAB:RB, TAB:CARG1->metatable
   |2:
-  |   mov CARG1, TISNIL
+  |   movn CARG1, #~LJ_TNIL
   |   ldr STR:RC, GL->gcroot[GCROOT_MMNAME+MM_metatable]
   |  cbz TAB:RB, ->fff_restv
   |  ldr TMP1w, TAB:RB->hmask
@@ -997,7 +996,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  movk CARG1, #(LJ_TTAB>>1)&0xffff, lsl #48
   |  b ->fff_restv
   |5:
-  |  cmp TMP0, TISNIL
+  |  cmn TMP0, #-LJ_TNIL
   |  bne ->fff_restv
   |  b <4
   |
@@ -1073,7 +1072,8 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |.ffunc_1 next
   |  checktp CARG2, CARG1, LJ_TTAB, ->fff_fallback
-  |  str TISNIL, [BASE, NARGS8:RC]	// Set missing 2nd arg to nil.
+  |  movn TMP0, #~LJ_TNIL
+  |  str TMP0, [BASE, NARGS8:RC]	// Set missing 2nd arg to nil.
   |  ldr PC, [BASE, FRAME_PC]
   |   stp BASE, BASE, L->base		// Add frame since C call can throw.
   |  mov CARG1, L
@@ -1081,7 +1081,8 @@ static void build_subroutines(BuildCtx *ctx)
   |   str PC, SAVE_PC
   |  bl extern lj_tab_next	// (lua_State *L, GCtab *t, TValue *key)
   |  // Returns 0 at end of traversal.
-  |  str TISNIL, [BASE, #-16]
+  |  movn TMP0, #~LJ_TNIL
+  |  str TMP0, [BASE, #-16]
   |  cbz CRET1, ->fff_res1		// End of traversal: return nil.
   |  ldp CARG1, CARG2, [BASE, #8]	// Copy key and value to results.
   |    mov RC, #(2+1)*8
@@ -1099,7 +1100,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  cbnz TAB:CARG2, ->fff_fallback
 #endif
   |  mov RC, #(3+1)*8
-  |  stp CARG1, TISNIL, [BASE, #-8]
+  |  movn TMP0, #~LJ_TNIL
+  |  stp CARG1, TMP0, [BASE, #-8]
   |   str CFUNC:CARG4, [BASE, #-16]
   |  b ->fff_res
   |
@@ -1119,7 +1121,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr TMP0, [CARG3, CARG2, lsl #3]
   |1:
   |   mov TMP1, #(2+1)*8
-  |   cmp TMP0, TISNIL
+  |   cmn TMP0, #-LJ_TNIL
   |  str TMP0, [BASE, #-8]
   |   csel RC, RC, TMP1, eq
   |  b ->fff_res
@@ -1361,7 +1363,8 @@ static void build_subroutines(BuildCtx *ctx)
   |6:  // Fill up results with nil.
   |  add TMP1, RA, RC
   |   add RC, RC, #8
-  |  str TISNIL, [TMP1, #-8]
+  |  movn TMP0, #~LJ_TNIL
+  |  str TMP0, [TMP1, #-8]
   |  b <5
   |
   |.macro math_extern, func
@@ -1858,7 +1861,7 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_exit_handler:
   |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
   |  // should, that would require a change to ExitStatej
-  |  stp     d0, d1, [sp, #-sizeof(ExitState)]!
+  |  //stp     d0, d1, [sp, #-sizeof(ExitState)]!
   |  stp     d2, d3, [sp, #16]
   |  stp     d4, d5, [sp, #32]
   |  stp     d6, d7, [sp, #48]
@@ -1892,7 +1895,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  str     x30,      [sp, #496] // x31 not valid
   |  ldr CARG1, [sp, #496]      // Load original value of lr.
   |   //ldr DISPATCH, [lr]        // Load DISPATCH.
-  |    add CARG3, sp, #sizeof(ExitState)     // Recompute original value of sp.
+  |    //add CARG3, sp, #sizeof(ExitState)     // Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #496]     // Store sp in RID_SP
   |   st_vmstate CARG4
@@ -1986,7 +1989,6 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldp BASE, RC, L:CRET1->base
   |   movz TISNUM, #(LJ_TISNUM>>1)&0xffff, lsl #48
   |   movz TISNUMhi, #(LJ_TISNUM>>1)&0xffff, lsl #16
-  |   movn TISNIL, #0
   |   mov L, CRET1
   |  ldr LFUNC:CARG3, [BASE, FRAME_FUNC]
   |  sub RC, RC, BASE
@@ -2598,10 +2600,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  // RA = base, RC = end
     |  add RA, BASE, RA, lsl #3
     |   add RC, BASE, RC, lsl #3
-    |  str TISNIL, [RA], #8
+    |  movn TMP0, #~LJ_TNIL
+    |  str TMP0, [RA], #8
     |1:
     |   cmp RA, RC
-    |  str TISNIL, [RA], #8
+    |  str TMP0, [RA], #8
     |   blt <1
     |  ins_next_
     break;
@@ -2801,7 +2804,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   cmp TMP1w, CARG1w		// In array part?
     |   bhs ->vmeta_tgetv
     |  ldr TMP0, [CARG3]
-    |  cmp TMP0, TISNIL
+    |  cmn TMP0, #-LJ_TNIL
     |  beq >5
     |1:
     |  str TMP0, [BASE, RA, lsl #3]
@@ -2844,7 +2847,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   ldr NODE:CARG3, NODE:CARG3->next
     |  cmp CARG1, CARG4
     |  bne >4
-    |  cmp TMP0, TISNIL
+    |  cmn TMP0, #-LJ_TNIL
     |  beq >5
     |3:
     |  str TMP0, [BASE, RA, lsl #3]
@@ -2853,7 +2856,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |4:  // Follow hash chain.
     |  cbnz NODE:CARG3, <1
     |  // End of hash chain: key not found, nil result.
-    |   mov TMP0, TISNIL
+    |   movn TMP0, #~LJ_TNIL
     |
     |5:  // Check for __index if table value is nil.
     |  ldr TAB:CARG1, TAB:CARG2->metatable
@@ -2874,7 +2877,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   cmp RCw, CARG1w			// In array part?
     |   bhs ->vmeta_tgetb
     |  ldr TMP0, [CARG3]
-    |  cmp TMP0, TISNIL
+    |  cmn TMP0, #-LJ_TNIL
     |  beq >5
     |1:
     |  str TMP0, [BASE, RA, lsl #3]
@@ -2921,7 +2924,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ldr TMP1, [CARG3]
     |   ldr TMP0, [BASE, RA, lsl #3]
     |    ldrb TMP2w, TAB:CARG2->marked
-    |  cmp TMP1, TISNIL			// Previous value is nil?
+    |  cmn TMP1, #-LJ_TNIL			// Previous value is nil?
     |  beq >5
     |1:
     |   str TMP0, [CARG3]
@@ -2973,7 +2976,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  cmp CARG1, CARG4
     |  bne >5
     |   ldr TMP0, [BASE, RA, lsl #3]
-    |  cmp TMP1, TISNIL			// Previous value is nil?
+    |  cmn TMP1, #-LJ_TNIL			// Previous value is nil?
     |  beq >4
     |2:
     |   str TMP0, NODE:CARG3->val
@@ -3032,7 +3035,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ldr TMP1, [CARG3]
     |   ldr TMP0, [BASE, RA, lsl #3]
     |    ldrb TMP2w, TAB:CARG2->marked
-    |  cmp TMP1, TISNIL			// Previous value is nil?
+    |  cmn TMP1, #-LJ_TNIL			// Previous value is nil?
     |  beq >5
     |1:
     |   str TMP0, [CARG3]
@@ -3230,7 +3233,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   add CARG3, CARG2, CARG1, lsl #3
     |  bhs >5				// Index points after array part?
     |   ldr TMP0, [CARG3]
-    |   cmp TMP0, TISNIL
+    |   cmn TMP0, #-LJ_TNIL
     |   cinc CARG1, CARG1, eq		// Skip holes in array part.
     |   beq <1
     |   add CARG1, CARG1, TISNUM
@@ -3251,7 +3254,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   add NODE:CARG3, NODE:RB, CARG1, lsl #3  // node = tab->node + idx*3*8
     |  bhi <4
     |  ldp TMP0, CARG1, NODE:CARG3->val
-    |  cmp TMP0, TISNIL
+    |  cmn TMP0, #-LJ_TNIL
     |   add RC, RC, #1
     |  beq <6				// Skip holes in hash part.
     |  stp CARG1, TMP0, [RA]
@@ -3270,7 +3273,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   asr TMP0, TAB:CARG3, #47
     |  ldrb TMP1w, CFUNC:CARG1->ffid
     |   cmn TMP0, #-LJ_TTAB
-    |   ccmp CARG4, TISNIL, #0, eq
+    |   movn TMP2, #~LJ_TNIL
+    |   ccmp CARG4, TMP2, #0, eq
     |  ccmp TMP1w, #FF_next_N, #0, eq
     |  bne >5
     |  mov TMP0w, #0xfffe7fff
@@ -3302,10 +3306,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   sub TMP3, BASE, #16		// TMP3 = vtop
     |  cbz RB, >5
     |   sub TMP2, TMP2, #16
+    |  movn TMP1, #~LJ_TNIL
     |1:  // Copy vararg slots to destination slots.
     |  cmp RC, TMP3
     |  ldr TMP0, [RC], #8
-    |  csel TMP0, TMP0, TISNIL, lo
+    |  csel TMP0, TMP0, TMP1, lo
     |   cmp RA, TMP2
     |  str TMP0, [RA], #8
     |   blo <1
@@ -3394,7 +3399,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |6:  // Fill up results with nil.
     |  add BASE, BASE, #8
     |   add RC, RC, #8
-    |  str TISNIL, [BASE, #-24]
+    |  movn TMP0, #~LJ_TNIL
+    |  str TMP0, [BASE, #-24]
     |  b <5
     |
     |->BC_RETV1_Z:  // Non-standard return case.
@@ -3438,7 +3444,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |6:  // Fill up results with nil.
     |  add RC, RC, #8
-    |  str TISNIL, [CARG4], #8
+    |  movn TMP0, #~LJ_TNIL
+    |  str TMP0, [CARG4], #8
     |  b <5
     break;
 
@@ -3559,7 +3566,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  // RA = base, RC = target
     |  ldr CARG1, [BASE, RA, lsl #3]
     |   add TMP1, BASE, RA, lsl #3
-    |  cmp CARG1, TISNIL
+    |  cmn CARG1, #-LJ_TNIL
     |  beq >1				// Stop if iterator returned nil.
     if (op == BC_JITERL) {
       |  str CARG1, [TMP1, #-8]
@@ -3642,7 +3649,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     }
     |
     |3:  // Clear missing parameters.
-    |  str TISNIL, [BASE, NARGS8:RC]
+    |  movn TMP0, #~LJ_TNIL
+    |  str TMP0, [BASE, NARGS8:RC]
     |  add NARGS8:RC, NARGS8:RC, #8
     |  b <2
     break;
@@ -3669,13 +3677,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ldrb TMP1w, [PC, #-4+PC2PROTO(numparams)]
     |   mov RA, BASE
     |   mov BASE, TMP2
+    |  movn TMP3, #~LJ_TNIL
     |  cbz TMP1, >2
     |1:
     |  cmp RA, RC			// Less args than parameters?
     |  bhs >3
     |   ldr TMP0, [RA]
     |  sub TMP1, TMP1, #1
-    |    str TISNIL, [RA], #8		// Clear old fixarg slot (help the GC).
+    |    str TMP3, [RA], #8		// Clear old fixarg slot (help the GC).
     |   str TMP0, [TMP2], #8
     |  cbnz TMP1, <1
     |2:
@@ -3683,7 +3692,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |3:
     |  sub TMP1, TMP1, #1
-    |   str TISNIL, [TMP2], #8
+    |   str TMP3, [TMP2], #8
     |  cbz TMP1, <2
     |  b <3
     break;
