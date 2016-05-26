@@ -309,14 +309,15 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
     rset_clear(allow, key);
   }
   rset_clear(allow, type);
+  lua_todo(); /* need plenty of GC64 changes here */
   if (irt_isnum(irkey->t)) {
     emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, type,
              (int32_t)ir_knum(irkey)->u32.hi, allow);
     emit_opk(as, A64I_CMPw, 0, key,
              (int32_t)ir_knum(irkey)->u32.lo, allow);
   } else {
-    lua_todo(); // following line is probably nonsense, no thought used...
-    emit_ccmpr(as, A64I_CCMPw, CC_EQ, 0, type, key);
+    if (ra_hasreg(key))
+      emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, key, irkey->i, allow);
     emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(irkey->t), allow);
   }
   emit_lso(as, A64I_LDRw, type, idx, kofs+4); /* !!!TODO w or x */
