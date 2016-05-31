@@ -41,14 +41,21 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
 {
   MCode *mxp = as->mcbot;
   int i;
+  intptr_t dispatch;
   /* !!!TODO i32ptr looks suspect for 64bit VM */
-  if (mxp + 4*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
+  if (mxp + 5*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
-  /* str lr, [sp]; bl ->vm_exit_handler; .long DISPATCH_address, group. */
-  *mxp++ = A64I_STRd|A64F_D(RID_LR)|A64F_N(RID_SP);
+  dispatch = i64ptr(J2GG(as->J)->dispatch);
+  /* str lr, [sp];
+     bl ->vm_exit_handler;
+     .long DISPATCH_address (lo)
+     .long DISPATCH_address (hi)
+     .long group. */
+  *mxp++ = A64I_STRx|A64F_D(RID_LR)|A64F_N(RID_SP);
   *mxp = A64I_BL|(((MCode *)(void *)lj_vm_exit_handler-mxp)&0x03ffffffu);
   mxp++;
-  *mxp++ = (MCode)i32ptr(J2GG(as->J)->dispatch);  /* DISPATCH address */
+  *mxp++ = (MCode)(dispatch & 0xffffffff);          /* DISPATCH address (lo) */
+  *mxp++ = (MCode)((dispatch >> 32) & 0xffffffff);  /* DISPATCH address (hi) */
   *mxp++ = group*EXITSTUBS_PER_GROUP;
   for (i = 0; i < EXITSTUBS_PER_GROUP; i++)
     *mxp++ = A64I_B|((-4-i)&0x03ffffffu);

@@ -36,7 +36,6 @@ enum {
   /* These definitions must match with the *.dasc file(s): */
   RID_BASE = RID_X19,		/* Interpreter BASE. */
   RID_LPC = RID_X21,		/* Interpreter PC. */
-  RID_DISPATCH = RID_X0,	/* !!!TODO Interpreter DISPATCH table. */
   RID_GL = RID_X22,		/* Interpreter GL. */
   RID_LREG = RID_X23,		/* Interpreter L. */
 
@@ -110,13 +109,11 @@ typedef struct {
   int32_t spill[256];           /* Spill slots. */
 } ExitState;
 
-#if 0
 /* PC after instruction that caused an exit. Used to find the trace number. */
-#define EXITSTATE_PCREG         RID_PC
+#define EXITSTATE_PCREG         RID_SP
 /* Highest exit + 1 indicates stack check. */
 #define EXITSTATE_CHECKEXIT     1
 
-#endif
 #define EXITSTUB_SPACING        4
 #define EXITSTUBS_PER_GROUP     32
 
