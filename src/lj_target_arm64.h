@@ -110,7 +110,7 @@ typedef struct {
 } ExitState;
 
 /* PC after instruction that caused an exit. Used to find the trace number. */
-#define EXITSTATE_PCREG         RID_SP
+#define EXITSTATE_PCREG         RID_LR
 /* Highest exit + 1 indicates stack check. */
 #define EXITSTATE_CHECKEXIT     1
 

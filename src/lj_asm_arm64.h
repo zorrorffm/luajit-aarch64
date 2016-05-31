@@ -58,7 +58,7 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   *mxp++ = (MCode)((dispatch >> 32) & 0xffffffff);  /* DISPATCH address (hi) */
   *mxp++ = group*EXITSTUBS_PER_GROUP;
   for (i = 0; i < EXITSTUBS_PER_GROUP; i++)
-    *mxp++ = A64I_B|((-4-i)&0x03ffffffu);
+    *mxp++ = A64I_B|((-5-i)&0x03ffffffu);
   lj_mcode_sync(as->mcbot, mxp);
   lj_mcode_commitbot(as->J, mxp);
   as->mcbot = mxp;
