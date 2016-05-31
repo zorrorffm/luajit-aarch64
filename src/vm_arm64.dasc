@@ -1892,20 +1892,20 @@ static void build_subroutines(BuildCtx *ctx)
   |  stp     x24, x25, [sp, #448]
   |  stp     x26, x27, [sp, #464]
   |  stp     x28, x29, [sp, #480]
-  |  str     x30,      [sp, #496] // x31 not valid
-  |  ldr CARG1, [sp, #496]      // Load original value of lr.
+  |  str     lr,       [sp, #496] // x31 not valid
+  |  ldr CARG1, [sp, #1536]      // Load original value of lr.
   |   ldr TMP0, [lr]        // Load DISPATCH.
   |   add CARG3, sp, #1536     // Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
-  |    str CARG3, [sp, #496]     // Store sp in RID_SP
+  |    str CARG3, [sp, #504]     // Store sp in RID_SP
   |   st_vmstate CARG4
   |  ldr CARG2, [CARG1, #-4]!   // Get exit instruction.
-  |   str CARG1, [sp, #504]      // Store exit pc in RID_LR and ...
-  |   str CARG1, [sp, #512]      // RID_SP (EXITSTATE_REG)
-  |  lsl CARG2, CARG2, #8       // !!!TODO is this extracting branch target?
-  |  add CARG1, CARG1, CARG2, asr #6 // I think it is, so 8/6 are wrong here
+  |   str CARG1, [sp, #496]      // Store exit pc in RID_LR and ...
+  |//   str CARG1, [sp, #504]      // RID_SP (EXITSTATE_REG)
+  |  lsl CARG2, CARG2, #38       // !!!TODO is this extracting branch target?
+  |  add CARG1, CARG1, CARG2, asr #36 // I think it is, so 8/6 are wrong here
   |   // !!!TODO w or x here?
-  |   ldr CARG2, [lr, #4]       // Load exit stub group offset.
+  |   ldr CARG2w, [lr, #8]      // Load exit stub group offset.
   |   sub CARG1, CARG1, lr
   |  movn TMP1, #~DISPATCH_GL(cur_L)
   |  ldr L, [TMP0, TMP1]
@@ -1913,7 +1913,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  movn TMP1, #~DISPATCH_GL(jit_base)
   |    ldr BASE, [TMP0, TMP1]
   |  movn TMP1, #~DISPATCH_J(exitno)
-  |   str CARG1, [TMP0, TMP1]
+  |   str CARG1w, [TMP0, TMP1]
   |   mov CARG4, #0
   |    str BASE, L->base
   |  movn TMP1, #~DISPATCH_J(L)
@@ -1928,7 +1928,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr CARG2, L->cframe
   |   ldr BASE, L->base
   |  movn TMP1, #~CFRAME_RAWMASK
-  |  bic CARG2, CARG2, TMP1
+  |  and CARG2, CARG2, TMP1
   |  mov sp, CARG2
   |   ldr PC, SAVE_PC                   // Get SAVE_PC.
   |  str L, SAVE_L                      // Set SAVE_L (on-trace resume/yield).
