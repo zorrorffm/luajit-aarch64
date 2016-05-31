@@ -1932,12 +1932,65 @@ static void build_subroutines(BuildCtx *ctx)
   |  mov sp, CARG2
   |   ldr PC, SAVE_PC                   // Get SAVE_PC.
   |  str L, SAVE_L                      // Set SAVE_L (on-trace resume/yield).
-  |  NYI  // 1: is in vm_exit_interp
   |  b >1
   |  
   |->vm_exit_interp:
+  |  // arm: CARG1 = MULTRES or negated error code, BASE, PC and DISPATCH set.
+  |  // arm64: BASE, PC, L, GL need to be set. They are when coming from
+  |  //        vm_exit_handler, but what about when entering here?
+  |.if JIT
   |  NYI
+  |  ldr L, SAVE_L
+  |1:
+  |  cmp CARG1, #0
+  |  blt >9				// Check for error from exit.
+  |   lsl RC, CARG1, #3
+  |  ldr LFUNC:CARG2, [BASE, FRAME_FUNC]
+  |   str RC, SAVE_MULTRES
+  |   mov CARG3, #0
+  |   str BASE, L->base
+  |  ldr CARG2, LFUNC:CARG2->field_pc
+  |   str CARG3, [GL, #offsetof(global_State, jit_base)]
+  |    mv_vmstate CARG4, INTERP
+  |  ldr KBASE, [CARG2, #PC2PROTO(k)]
+  |  // Modified copy of ins_next which handles function header dispatch, too.
+  |  ldrb RBw, [PC]
+  |   ldr INSw, [PC], #4
+  |    st_vmstate CARG4
+  |  cmp RBw, #BC_FUNCC+2		// Fast function?
+  |  bhs >4
+  |2:
+  |  cmp RBw, #BC_FUNCF			// Function header?
+  |  add TMP0, GL, RB, lsl #2
+  |  ldr RB, [TMP0, #GG_G2DISP]
+  |   decode_RA RA, INS
+  |   lsr TMP0, INS, #16
+  |   csel RC, TMP0, RC, lo
+  |   blo >5
+  |   sub RC, RC, #8
+  |   add RA, RA, BASE	// Yes: RA = BASE+framesize*8, RC = nargs*8
+  |   ldr CARG3, [BASE, FRAME_FUNC]
+  |5:
+  |  br RB
   |
+  |4:  // Check frame below fast function.
+  |  ldr CARG1, [BASE, FRAME_PC]
+  |  ands CARG2, CARG1, #FRAME_TYPE
+  |  bne <2			// Trace stitching continuation?
+  |  // Otherwise set KBASE for Lua function below fast function.
+  |  ldr CARG3, [CARG1, #-4]
+  |  decode_RA CARG1, CARG3
+  |  sub CARG2, BASE, CARG1
+  |  ldr LFUNC:CARG3, [CARG2, #-16]
+  |  ldr CARG3, LFUNC:CARG3->field_pc
+  |  ldr KBASE, [CARG3, #PC2PROTO(k)]
+  |  b <2
+  |
+  |9:  // Rethrow error from the right C frame.
+  |  neg CARG2, CARG1
+  |  mov CARG1, L
+  |  bl extern lj_err_throw		// (lua_State *L, int errcode)
+  |.endif
   |//-----------------------------------------------------------------------
   |//-- Math helper functions ----------------------------------------------
   |//-----------------------------------------------------------------------
@@ -3600,7 +3653,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_JLOOP:
     |.if JIT
     |  // RA = base (ignored), RC = traceno
-    |  add TMP0, GL, #GG_G2DISP
+    |  //add TMP0, GL, #GG_G2DISP // !!!TODO huh? did I put that here? why?
     |  ldr CARG1, [GL, #GL_J(trace)]
     |   mov CARG2, #0  // Traces on ARM don't store the trace number, so use 0.
     |  ldr TRACE:RC, [CARG1, RC, lsl #3] // !!!TODO w/lsl#2 or x/lsl#3 or other?
