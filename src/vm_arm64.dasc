@@ -239,6 +239,8 @@
 |.macro mov_true, reg; movn reg, #0x0001, lsl #48; .endmacro
 |
 #define GL_J(field)	(GG_OFS(J) - GG_OFS(g) + (int)offsetof(jit_State, field))
+#define DISPATCH_GL(field)      (GG_DISP2G + (int)offsetof(global_State, field))
+#define DISPATCH_J(field)       (GG_DISP2J + (int)offsetof(jit_State, field))
 |
 #define PC2PROTO(field)  ((int)offsetof(GCproto, field)-(int)sizeof(GCproto))
 |
@@ -1857,8 +1859,9 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->vm_exit_handler:
   |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
-  |  // should, that would require a change to ExitStatej
-  |  stp     d0, d1, [sp, #-sizeof(ExitState)]!
+  |  // should, that would require a change to ExitState
+  |  sub     sp, sp, #1536
+  |  stp     d0, d1, [sp, #0]
   |  stp     d2, d3, [sp, #16]
   |  stp     d4, d5, [sp, #32]
   |  stp     d6, d7, [sp, #48]
@@ -1891,41 +1894,47 @@ static void build_subroutines(BuildCtx *ctx)
   |  stp     x28, x29, [sp, #480]
   |  str     x30,      [sp, #496] // x31 not valid
   |  ldr CARG1, [sp, #496]      // Load original value of lr.
-  |   //ldr DISPATCH, [lr]        // Load DISPATCH.
-  |    add CARG3, sp, #sizeof(ExitState)     // Recompute original value of sp.
+  |   ldr TMP0, [lr]        // Load DISPATCH.
+  |   add CARG3, sp, #1536     // Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #496]     // Store sp in RID_SP
   |   st_vmstate CARG4
   |  ldr CARG2, [CARG1, #-4]!   // Get exit instruction.
   |   str CARG1, [sp, #504]      // Store exit pc in RID_LR and ...
-  |   str CARG1, [sp, #504]      // !!!TODO RID_PC (but none exists!)
+  |   str CARG1, [sp, #512]      // RID_SP (EXITSTATE_REG)
   |  lsl CARG2, CARG2, #8       // !!!TODO is this extracting branch target?
   |  add CARG1, CARG1, CARG2, asr #6 // I think it is, so 8/6 are wrong here
   |   // !!!TODO w or x here?
   |   ldr CARG2, [lr, #4]       // Load exit stub group offset.
   |   sub CARG1, CARG1, lr
-  |  
-  |.if JITxxx
-  |  ldr L, [DISPATCH, #DISPATCH_GL(cur_L)]
+  |  movn TMP1, #~DISPATCH_GL(cur_L)
+  |  ldr L, [TMP0, TMP1]
   |   add CARG1, CARG2, CARG1, lsr #2   // Compute exit number.
-  |    ldr BASE, [DISPATCH, #DISPATCH_GL(jit_base)]
-  |   str CARG1, [DISPATCH, #DISPATCH_J(exitno)]
+  |  movn TMP1, #~DISPATCH_GL(jit_base)
+  |    ldr BASE, [TMP0, TMP1]
+  |  movn TMP1, #~DISPATCH_J(exitno)
+  |   str CARG1, [TMP0, TMP1]
   |   mov CARG4, #0
   |    str BASE, L->base
-  |  str L, [DISPATCH, #DISPATCH_J(L)]
-  |   str CARG4, [DISPATCH, #DISPATCH_GL(jit_base)]
-  |  sub CARG1, DISPATCH, #-GG_DISP2J
+  |  movn TMP1, #~DISPATCH_J(L)
+  |  str L, [TMP0, TMP1]
+  |  movn TMP1, #~DISPATCH_GL(jit_base)
+  |   str CARG4, [TMP0, TMP1]
+  |  sub CARG1, TMP0, #-GG_DISP2J
   |  mov CARG2, sp
+  |  ldr GL, L->glref
   |  bl extern lj_trace_exit            // (jit_State *J, ExitState *ex)
   |  // Returns MULTRES (unscaled) or negated error code.
   |  ldr CARG2, L->cframe
   |   ldr BASE, L->base
-  |  bic CARG2, CARG2, #~CFRAME_RAWMASK // Use two steps: bic sp is deprecated.
+  |  movn TMP1, #~CFRAME_RAWMASK
+  |  bic CARG2, CARG2, TMP1
   |  mov sp, CARG2
   |   ldr PC, SAVE_PC                   // Get SAVE_PC.
   |  str L, SAVE_L                      // Set SAVE_L (on-trace resume/yield).
+  |  NYI  // 1: is in vm_exit_interp
   |  b >1
-  |.endif
+  |  
   |->vm_exit_interp:
   |  NYI
   |
