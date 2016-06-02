@@ -20,13 +20,18 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 /* Encode constant in K12 format for data processing instructions. */
 static uint32_t emit_isk12(A64Ins ai, int32_t n)
 {
-    /* !!!TODO implement this! */
+    /* !!!TODO handle shift */
+    if (n >= 0 && n <= 4095)
+    {
+        return (n & 4095) << 10;
+    }
     return -1;
 }
 
 /* Load a 32 bit constant into a GPR. */
 static void emit_loadi(ASMState *as, Reg rd, int32_t i)
 {
+  /* !!!TODO handle wide move */
   if (i >= 0x10000) {
     *--as->mcp = A64I_MOVK_16w | A64F_D(rd) | A64F_U16((i>>16) & 0xffff);
   }
@@ -34,9 +39,19 @@ static void emit_loadi(ASMState *as, Reg rd, int32_t i)
 }
 
 /* mov r, imm64 or shorter 32 bit extended load. */
-static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
+static void emit_loadu64(ASMState *as, Reg rd, uint64_t u64)
 {
-  lua_unimpl();
+  /* !!!TODO plenty of ways to optimise this! */
+  if (u64 & 0xffff000000000000) {
+    *--as->mcp = A64I_MOVK_48x | A64F_D(rd) | A64F_U16((u64>>48) & 0xffff);
+  }
+  if (u64 & 0xffff00000000) {
+    *--as->mcp = A64I_MOVK_32x | A64F_D(rd) | A64F_U16((u64>>32) & 0xffff);
+  }
+  if (u64 & 0xffff0000) {
+    *--as->mcp = A64I_MOVK_16x | A64F_D(rd) | A64F_U16((u64>>16) & 0xffff);
+  }
+  *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(u64 & 0xffff);
 }
 
 /* Load a number constant into an FPR. */
@@ -86,7 +101,7 @@ static void emit_opk(ASMState *as, A64Ins ai, Reg dest, Reg src,
 {
   uint32_t k = emit_isk12(ai, i);
   if (k != -1)
-    emit_dn(as, ai^k, dest, src);
+    emit_dn(as, ai^k^A64I_BINOPk, dest, src);
   else
     emit_dnm(as, ai, dest, src, ra_allock(as, i, allow));
 }
