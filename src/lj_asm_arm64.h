@@ -360,7 +360,10 @@ static A64Ins asm_fxloadins(IRIns *ir)
   case IRT_U16: return A64I_LDRHw;
   case IRT_NUM: return A64I_LDRd;
   case IRT_FLOAT: lua_unimpl(); return /*ARMI_VLDR_S*/0;
-  default: return A64I_LDRx; /* !!!TODO w or x? */
+  case IRT_P64: return A64I_LDRx;
+  case IRT_INT: return A64I_LDRw;
+  case IRT_TAB: lua_todo(); return A64I_LDRx; // !!!TODO dunno yet!
+  default: lua_unimpl(); return A64I_LDRx;
   }
 }
 
