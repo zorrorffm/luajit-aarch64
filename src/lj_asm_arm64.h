@@ -167,7 +167,7 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
   } else if (irref_isk(ref)) {
     uint32_t k = emit_isk12(ai, ir->i);
     if (k != -1)
-      return k;
+      return k ^ A64I_BINOPk;
   } else if (mayfuse(as, ref)) {
 #if 0
     /* !!!TODO fuse shifts into this instruction, as ARM does */
