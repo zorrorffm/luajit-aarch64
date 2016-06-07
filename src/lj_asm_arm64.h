@@ -375,6 +375,7 @@ static A64Ins asm_fxloadins(IRIns *ir)
 
 static A64Ins asm_fxstoreins(IRIns *ir)
 {
+  lua_unimpl();
   switch (irt_type(ir->t)) {
   case IRT_I8: case IRT_U8: return /*ARMI_STRB*/0;
   case IRT_I16: case IRT_U16: return /*ARMI_STRH*/0;
@@ -446,6 +447,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
 
 static void asm_ahustore(ASMState *as, IRIns *ir)
 {
+  lua_todo(); /* !!!TODO x86 has loads of GC64 changes here */
   if (ir->r != RID_SINK) {
     RegSet allow = RSET_GPR;
     Reg idx, src = RID_NONE, type = RID_NONE;
@@ -460,7 +462,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
         src = ra_alloc1(as, ir->op2, allow);
         rset_clear(allow, src);
       }
-      type = ra_allock(as, (int32_t)irt_toitype(ir->t), allow);
+      type = ra_allock(as, (int32_t)irt_toitype(ir->t)<<15, allow);
       idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, type), 4096);
       if (ra_hasreg(src))
 	emit_lso(as, A64I_STRw, src, idx, ofs); /* !!!TODO STRx? */
@@ -657,12 +659,16 @@ static void asm_add(ASMState *as, IRIns *ir)
       asm_fparith(as, ir, A64I_ADDd);
     return;
   }
-  asm_intop_s(as, ir, A64I_ADDw);
+  asm_intop_s(as, ir, A64I_ADDw); /* !!!TODO this drops the tag, is it wrong? */
 }
 
 static void asm_sub(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  if (irt_isnum(ir->t)) {
+    asm_fparith(as, ir, A64I_SUBd);
+    return;
+  }
+  asm_intop_s(as, ir, A64I_SUBw); /* !!!TODO this drops the tag, is it wrong? */
 }
 
 static void asm_mul(ASMState *as, IRIns *ir)

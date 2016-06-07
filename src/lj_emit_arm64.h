@@ -35,7 +35,7 @@ static uint32_t emit_isk12(A64Ins ai, int32_t n)
 static void emit_loadi(ASMState *as, Reg rd, int32_t i)
 {
   /* !!!TODO handle wide move */
-  if (i >= 0x10000) {
+  if (i & 0xffff0000) {
     *--as->mcp = A64I_MOVK_16w | A64F_D(rd) | A64F_U16((i>>16) & 0xffff);
   }
   *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(i & 0xffff);
@@ -151,6 +151,8 @@ static ofs_type check_offset(A64Ins ai, int32_t ofs)
   case A64I_STRw: scale = 2; break;
   case A64I_LDRx: scale = 3; break;
   case A64I_STRx: scale = 3; break;
+  case A64I_LDRd: scale = 3; break;
+  case A64I_STRd: scale = 3; break;
   default: lua_assert(!"invalid instruction in check_offset");
   }
 
