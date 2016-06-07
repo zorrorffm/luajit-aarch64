@@ -46,12 +46,12 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   if (mxp + 5*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
   dispatch = i64ptr(J2GG(as->J)->dispatch);
-  /* str lr, [sp];
+  /* str lr, [sp, #TMPDofs];
      bl ->vm_exit_handler;
      .long DISPATCH_address (lo)
      .long DISPATCH_address (hi)
      .long group. */
-  *mxp++ = A64I_STRx|A64F_D(RID_LR)|A64F_N(RID_SP);
+  *mxp++ = A64I_STRx|A64F_D(RID_LR)|A64F_N(RID_SP)|A64F_A(CFRAME_OFS_TMPD>>3);
   *mxp = A64I_BL|(((MCode *)(void *)lj_vm_exit_handler-mxp)&0x03ffffffu);
   mxp++;
   *mxp++ = (MCode)(dispatch & 0xffffffff);          /* DISPATCH address (lo) */
@@ -303,7 +303,6 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   Reg key = RID_NONE, type = RID_TMP, idx = node;
   RegSet allow = rset_exclude(RSET_GPR, node);
   lua_assert(ofs % sizeof(Node) == 0);
-printf("%d\n",ofs);
   /* !!!TODO check 4095 for AArch64 */
   if (ofs > 4095) {
     idx = dest;
