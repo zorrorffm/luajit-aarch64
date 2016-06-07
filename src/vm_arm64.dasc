@@ -1899,7 +1899,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #504]     // Store sp in RID_SP
   |   st_vmstate CARG4
-  |  ldr CARG2, [CARG1, #-4]!   // Get exit instruction.
+  |  ldr CARG2w, [CARG1, #-4]!   // Get exit instruction.
   |   str CARG1, [sp, #496]      // Store exit pc in RID_LR and ...
   |//   str CARG1, [sp, #504]      // RID_SP (EXITSTATE_REG)
   |  lsl CARG2, CARG2, #38       // !!!TODO is this extracting branch target?
@@ -1907,6 +1907,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   // !!!TODO w or x here?
   |   ldr CARG2w, [lr, #8]      // Load exit stub group offset.
   |   sub CARG1, CARG1, lr
+  |   sub CARG1, CARG1, #12      // there are 2x dispatch words + group offset
   |  movn TMP1, #~DISPATCH_GL(cur_L)
   |  ldr L, [TMP0, TMP1]
   |   add CARG1, CARG2, CARG1, lsr #2   // Compute exit number.

@@ -145,6 +145,7 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
         }
       }
     } else if (ir->o == IR_UREFC) {
+      lua_unimpl(); // x86 has LJ_GC64 changes here
       if (irref_isk(ir->op1)) {
         GCfunc *fn = ir_kfunc(IR(ir->op1));
         int32_t ofs = i32ptr(&gcref(fn->l.uvptr[(ir->op2 >> 8)])->uv.tv);
@@ -302,33 +303,38 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   Reg key = RID_NONE, type = RID_TMP, idx = node;
   RegSet allow = rset_exclude(RSET_GPR, node);
   lua_assert(ofs % sizeof(Node) == 0);
+printf("%d\n",ofs);
   /* !!!TODO check 4095 for AArch64 */
   if (ofs > 4095) {
     idx = dest;
     rset_clear(allow, dest);
     kofs = (int32_t)offsetof(Node, key);
+lua_unimpl();
   } else if (ra_hasreg(dest)) {
     emit_opk(as, A64I_ADDx, dest, node, ofs, allow); /*!!!TODO w or x */
   }
   asm_guardcc(as, CC_NE);
+
   if (!irt_ispri(irkey->t)) {
-    key = ra_scratch(as, allow);
-    rset_clear(allow, key);
-  }
-  rset_clear(allow, type);
-  lua_todo(); /* need plenty of GC64 changes here */
-  if (irt_isnum(irkey->t)) {
-    emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, type,
-             (int32_t)ir_knum(irkey)->u32.hi, allow);
-    emit_opk(as, A64I_CMPw, 0, key,
-             (int32_t)ir_knum(irkey)->u32.lo, allow);
+    Reg key = ra_scratch(as, rset_exclude(RSET_GPR, node));
+//    emit_rmro(as, XO_CMP, key|REX_64, node,
+//               ofs + (int32_t)offsetof(Node, key.u64));
+    emit_dnm(as, A64I_CMPx, 0, dest, key);
+    lua_assert(irt_isnum(irkey->t) || irt_isgcv(irkey->t));
+    /* !!!TODO is this valid on ARM64? */
+    /* Assumes -0.0 is already canonicalized to +0.0. */
+    emit_loadu64(as, key, irt_isnum(irkey->t) ? ir_knum(irkey)->u64 :
+                          ((uint64_t)irt_toitype(irkey->t) << 47) |
+                          (uint64_t)ir_kgc(irkey));
+    emit_lso(as, A64I_LDRx, dest, idx, kofs);
   } else {
-    if (ra_hasreg(key))
-      emit_ccmpk(as, A64I_CCMPw, CC_EQ, 0, key, irkey->i, allow);
-    emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(irkey->t), allow);
+lua_unimpl();
+    lua_assert(!irt_isnil(irkey->t));
+//    emit_i32(as, (irt_toitype(irkey->t)<<15)|0x7fff);
+//    emit_rmro(as, XO_ARITHi, XOg_CMP, node,
+//              ofs + (int32_t)offsetof(Node, key.it));
   }
-  emit_lso(as, A64I_LDRw, type, idx, kofs+4); /* !!!TODO w or x */
-  if (ra_hasreg(key)) emit_lso(as, A64I_LDRw, key, idx, kofs); /* !!!TODO w or x */
+
   if (ofs > 4095)
     emit_opk(as, A64I_ADDx, dest, node, ofs, RSET_GPR);
 }
@@ -427,7 +433,8 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
                        (t == IRT_NUM) ? 1024 : 4096);
   type = RID_TMP;
   asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
-  emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
+  lua_todo(); /* !!!TODO should add "| 0x7fff" to the constant value below */
+  emit_opk(as, A64I_CMNw, 1, type, -irt_toitype(ir->t) << 15, allow);
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM)
       emit_lso(as, A64I_LDRd, dest, idx, ofs);
@@ -650,7 +657,7 @@ static void asm_add(ASMState *as, IRIns *ir)
       asm_fparith(as, ir, A64I_ADDd);
     return;
   }
-  asm_intop_s(as, ir, A64I_ADDx);
+  asm_intop_s(as, ir, A64I_ADDw);
 }
 
 static void asm_sub(ASMState *as, IRIns *ir)
