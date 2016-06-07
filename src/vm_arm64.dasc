@@ -1962,7 +1962,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bhs >4
   |2:
   |  cmp RBw, #BC_FUNCF			// Function header?
-  |  add TMP0, GL, RB, lsl #2
+  |  add TMP0, GL, RB, uxtb #3
   |  ldr RB, [TMP0, #GG_G2DISP]
   |   decode_RA RA, INS
   |   lsr TMP0, INS, #16
