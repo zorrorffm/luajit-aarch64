@@ -20,10 +20,13 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 /* Encode constant in K12 format for data processing instructions. */
 static uint32_t emit_isk12(A64Ins ai, int32_t n)
 {
-    /* !!!TODO handle shift */
     if (n >= 0 && n <= 4095)
     {
         return (n & 4095) << 10;
+    }
+    if ((n & 4095) == 0 && n < (4095 << 12))
+    {
+        return (((n >> 12) & 4095) << 10) | (1 << 22);
     }
     return -1;
 }

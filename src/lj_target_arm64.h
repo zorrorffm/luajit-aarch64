@@ -185,6 +185,7 @@ typedef enum A64Ins {
   A64I_CMPw = A64I_SUBSw | A64F_D (RID_ZERO),
   A64I_CMPx = A64I_SUBSx | A64F_D (RID_ZERO),
   A64I_CMNx = A64I_ADDSx | A64F_D (RID_ZERO),
+  A64I_CMNw = A64I_ADDSw | A64F_D (RID_ZERO),
 
   /* fields */
   A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
