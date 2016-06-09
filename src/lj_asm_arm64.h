@@ -424,6 +424,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   Reg dest = RID_NONE, type = RID_NONE, idx;
   RegSet allow = RSET_GPR;
   int32_t ofs = 0;
+  uint32_t compare_tag;
   if (ra_used(ir)) {
     lua_assert(irt_isnum(ir->t) || irt_isint(ir->t) || irt_isaddr(ir->t));
     dest = ra_dest(as, ir, (t == IRT_NUM) ? RSET_FPR : allow);
@@ -433,8 +434,14 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
                        (t == IRT_NUM) ? 1024 : 4096);
   type = RID_TMP;
   asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
-  lua_todo(); /* !!!TODO should add "| 0x7fff" to the constant value below */
-  emit_opk(as, A64I_CMNw, 1, type, -irt_toitype(ir->t) << 15, allow);
+  if (irt_type(ir->t) >= IRT_NUM)
+  {
+    compare_tag = (-irt_toitype(ir->t) << 15);
+  } else {
+    lua_unimpl(); /* !!!TODO refer to x86 for this */
+    compare_tag = 0;
+  }
+  emit_opk(as, A64I_CMNw, 1, type, compare_tag, allow);
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM)
       emit_lso(as, A64I_LDRd, dest, idx, ofs);
