@@ -135,11 +135,13 @@ typedef enum A64CC {
 #define A64F_A(r)       ((r) << 10)
 #define A64F_A_U(r)     ((r) << 12)
 #define A64F_M(r)       ((r) << 16)
+#define A64F_IR(n)	((n) << 16)
 #define A64F_U16(x)	((x) << 5)
 #define A64F_S26(x)	(x)
 #define A64F_S19(x)	((x) << 5)
 #define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
 #define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
+#define A64F_SH(sh, n)	(((sh) << 22) | ((n) << 10))
 
 typedef enum A64Ins {
   A64I_S = 0x20000000,
@@ -149,6 +151,8 @@ typedef enum A64Ins {
   A64I_MOVK_48x = 0xf2e00000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
+  A64I_MOVw = 0x2a0003e0,
+  A64I_MOVx = 0xaa0003e0,
   A64I_LDRBw = 0x39400000,
   A64I_LDRHw = 0x79400000,
   A64I_LDRw = 0xb9400000,
@@ -175,10 +179,19 @@ typedef enum A64Ins {
   A64I_SUBSx = A64I_SUBx | A64I_S,
   A64I_SUBSw = A64I_SUBw | A64I_S,
 
+  A64I_ASRw = 0x13007c00,
+  A64I_ASRx = 0x9340fc00,
+
+  A64I_MULw = 0x1b007c00,
+  A64I_MULx = 0x9b007c00,
+  A64I_SMULL = 0x9b207c00,
+
   /* FP */
   A64I_ADDd = 0x5ee08400,
   A64I_SUBd = 0x7ee08400,
   A64I_FMADDd = 0x1f400000,
+  A64I_FMULd = 0x1e600000,
+  A64I_FMULs = 0x1e200000,
   A64I_STRd = 0xfd000000, /* str d0,[x0] */
   A64I_LDRd = 0xfd400000, /* ldr d0,[x0] */
 
@@ -193,5 +206,9 @@ typedef enum A64Ins {
   A64I_LS_U = 0x01000000, /* A64I_LDRx^A64I_LS_U => LDUR x0,[x0] */
   A64I_LS_S = 0x00100000, /* A64I_LDRBw^A64I_LS_S => LDRSB w0,[x0] */
 } A64Ins;
+
+typedef enum A64Shift {
+  A64SH_LSL, A64SH_LSR, A64SH_ASR
+} ARMShift;
 
 #endif

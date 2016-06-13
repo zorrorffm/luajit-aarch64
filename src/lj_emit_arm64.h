@@ -93,6 +93,16 @@ static void emit_dn(ASMState *as, A64Ins ai, Reg rd, Reg rn)
   *--as->mcp = ai | A64F_D(rd) | A64F_N(rn);
 }
 
+static void emit_dm(ASMState *as, A64Ins ai, Reg rd, Reg rm)
+{
+  *--as->mcp = ai | A64F_D(rd) | A64F_M(rm);
+}
+
+static void emit_nm(ASMState *as, A64Ins ai, Reg rn, Reg rm)
+{
+  *--as->mcp = ai | A64F_N(rn) | A64F_M(rm);
+}
+
 static void emit_dnm(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm)
 {
   *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm);
@@ -126,7 +136,7 @@ rn, int32_t k, RegSet allow)
     emit_ccmpr(as, ai, cond, nzcv, rn, ra_allock(as, k, allow));
   }
 }
- 
+
 /* -- Emit loads/stores --------------------------------------------------- */
 
 typedef enum {
