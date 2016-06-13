@@ -25,14 +25,29 @@ static Reg ra_scratchpair(ASMState *as, RegSet allow)
    return 0;
 }
 
-#if !LJ_SOFTFP
 /* Allocate two source registers for three-operand instructions. */
 static Reg ra_alloc2(ASMState *as, IRIns *ir, RegSet allow)
 {
-    lua_unimpl();
-   return 0;
+  IRIns *irl = IR(ir->op1), *irr = IR(ir->op2);
+  Reg left = irl->r, right = irr->r;
+  if (ra_hasreg(left)) {
+    ra_noweak(as, left);
+    if (ra_noreg(right))
+      right = ra_allocref(as, ir->op2, rset_exclude(allow, left));
+    else
+      ra_noweak(as, right);
+  } else if (ra_hasreg(right)) {
+    ra_noweak(as, right);
+    left = ra_allocref(as, ir->op1, rset_exclude(allow, right));
+  } else if (ra_hashint(right)) {
+    right = ra_allocref(as, ir->op2, allow);
+    left = ra_alloc1(as, ir->op1, rset_exclude(allow, right));
+  } else {
+    left = ra_allocref(as, ir->op1, allow);
+    right = ra_alloc1(as, ir->op2, rset_exclude(allow, left));
+  }
+  return left | (right << 8);
 }
-#endif
 
 /* -- Guard handling ------------------------------------------------------ */
 
@@ -572,10 +587,12 @@ static void asm_obar(ASMState *as, IRIns *ir)
 
 /* -- Arithmetic and logic operations ------------------------------------- */
 
-#if !LJ_SOFTFP
 static void asm_fparith(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_FPR);
+  Reg right, left = ra_alloc2(as, ir, RSET_FPR);
+  right = (left >> 8); left &= 255;
+  emit_dnm(as, ai, (dest & 15), (left & 15), (right & 15));
 }
 
 static void asm_fpunary(ASMState *as, IRIns *ir, A64Ins ai)
@@ -592,7 +609,6 @@ static void asm_fpmath(ASMState *as, IRIns *ir)
 {
     lua_unimpl();
 }
-#endif
 
 static int asm_swapops(ASMState *as, IRRef lref, IRRef rref)
 {
@@ -655,7 +671,17 @@ static void asm_intneg(ASMState *as, IRIns *ir, A64Ins ai)
 /* NYI: use add/shift for MUL(OV) with constants. FOLD only does 2^k. */
 static void asm_intmul(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg left = ra_alloc1(as, ir->op1, rset_exclude(RSET_GPR, dest));
+  Reg right = ra_alloc1(as, ir->op2, rset_exclude(RSET_GPR, left));
+  if (irt_isguard(ir->t)) {  /* IR_MULOV */
+    asm_guardcc(as, CC_NE);
+    emit_nm(as, A64I_CMPw|A64F_SH(A64SH_ASR, 31), RID_TMP, dest);
+    emit_dn(as, A64I_ASRx|A64F_IR(32), RID_TMP, dest);
+    emit_dnm(as, A64I_SMULL, dest, right, left);
+  } else {
+    emit_nm(as, A64I_MULx, dest, left);
+  }
 }
 
 static void asm_add(ASMState *as, IRIns *ir)
@@ -679,7 +705,11 @@ static void asm_sub(ASMState *as, IRIns *ir)
 
 static void asm_mul(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  if (irt_isnum(ir->t)) {
+    asm_fparith(as, ir, A64I_FMULd);
+    return;
+  }
+  asm_intmul(as, ir);
 }
 
 #define asm_addov(as, ir)	asm_add(as, ir)
