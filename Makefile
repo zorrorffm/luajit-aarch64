@@ -163,3 +163,14 @@ clean:
 .PHONY: all install amalg clean
 
 ##############################################################################
+
+define RUN_LUA_TEST
+$(MAKE) LUAJIT="$(LUA_EXECUTOR) $(shell pwd)/src/luajit" LUA_PATH="$(shell pwd)/src/?.lua;;" -C test $@
+endef
+
+test: all
+	@echo "Running all tests :"
+	$(call RUN_LUA_TEST)
+
+test_%: all
+	$(call RUN_LUA_TEST)
