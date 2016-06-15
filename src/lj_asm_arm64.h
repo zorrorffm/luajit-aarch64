@@ -57,7 +57,6 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   MCode *mxp = as->mcbot;
   int i;
   intptr_t dispatch;
-  /* !!!TODO i32ptr looks suspect for 64bit VM */
   if (mxp + 5*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
   dispatch = i64ptr(J2GG(as->J)->dispatch);
@@ -84,7 +83,6 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
 /* Setup all needed exit stubs. */
 static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
 {
-  // !!!TODO shared with ARM
   ExitNo i;
   if (nexits >= EXITSTUBS_PER_GROUP*LJ_MAX_EXITSTUBGR)
     lj_trace_err(as->J, LJ_TRERR_SNAPOV);
