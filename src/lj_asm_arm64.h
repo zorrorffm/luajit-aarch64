@@ -57,7 +57,6 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
   MCode *mxp = as->mcbot;
   int i;
   intptr_t dispatch;
-  /* !!!TODO i32ptr looks suspect for 64bit VM */
   if (mxp + 5*4+4*EXITSTUBS_PER_GROUP >= as->mctop)
     asm_mclimit(as);
   dispatch = i64ptr(J2GG(as->J)->dispatch);
@@ -84,7 +83,6 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
 /* Setup all needed exit stubs. */
 static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
 {
-  // !!!TODO shared with ARM
   ExitNo i;
   if (nexits >= EXITSTUBS_PER_GROUP*LJ_MAX_EXITSTUBGR)
     lj_trace_err(as->J, LJ_TRERR_SNAPOV);
@@ -131,11 +129,8 @@ static int32_t asm_fuseabase(ASMState *as, IRRef ref)
 
 /* Fuse array/hash/upvalue reference into register+offset operand. */
 static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
-			  int lim)
+			  A64Ins ins)
 {
-  /* !!!TODO replace lim parameter with A64Ins, and use check_offset instead */
-  /* !!!TODO NFI what this does, the comment about LDRD below looks dodgy */
-  lua_todo();
   IRIns *ir = IR(ref);
   if (ra_noreg(ir->r)) {
     if (ir->o == IR_AREF) {
@@ -145,7 +140,7 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
           int32_t ofs = asm_fuseabase(as, tab);
           IRRef refa = ofs ? tab : ir->op1;
           ofs += 8*IR(ir->op2)->i;
-          if (ofs > -lim && ofs < lim) {
+          if (check_offset(ins, ofs + (ofs > 0 ? 4 : 0)) != OFS_INVALID) {
             *ofsp = ofs;
             return ra_alloc1(as, refa, allow);
           }
@@ -154,7 +149,7 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow,
     } else if (ir->o == IR_HREFK) {
       if (mayfuse(as, ref)) {
         int32_t ofs = (int32_t)(IR(ir->op2)->op2 * sizeof(Node));
-        if (ofs < lim) {
+        if (check_offset(ins, ofs + (ofs > 0 ? 4 : 0)) != OFS_INVALID) {
           *ofsp = ofs;
           return ra_alloc1(as, ir->op1, allow);
         }
@@ -490,7 +485,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
     rset_clear(allow, dest);
   }
   idx = asm_fuseahuref(as, ir->op1, &ofs, allow,
-                       (t == IRT_NUM) ? 1024 : 4096);
+                       (t == IRT_NUM) ? A64I_LDRd : A64I_LDRw);
   type = RID_TMP;
   asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
   if (irt_type(ir->t) >= IRT_NUM)
@@ -519,7 +514,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     int32_t ofs = 0;
     if (irt_isnum(ir->t)) {
       src = ra_alloc1(as, ir->op2, RSET_FPR);
-      idx = asm_fuseahuref(as, ir->op1, &ofs, allow, 1024); /* !!!TODO what is 1024 */
+      idx = asm_fuseahuref(as, ir->op1, &ofs, allow, A64I_STRd);
       emit_lso(as, A64I_STRd, (src & 31), idx, ofs);
     } else {
       if (!irt_ispri(ir->t)) {
@@ -527,7 +522,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
 	rset_clear(allow, src);
       }
       type = ra_allock(as, (int32_t)irt_toitype(ir->t)<<15, allow);
-      idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, type), 4096);
+      idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, type), A64I_STRw);
       if (ra_hasreg(src))
 	emit_lso(as, A64I_STRw, src, idx, ofs); /* !!!TODO STRx? */
       emit_lso(as, A64I_STRw, type, idx, ofs+4); /* !!!TODO STRx? */
@@ -590,11 +585,11 @@ dotypecheck:
   }
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM) {
-      if (check_offset(A64I_LDRd, ofs)) {
+      if (check_offset(A64I_LDRd, ofs) != OFS_INVALID) {
         emit_lso(as, A64I_LDRd, dest, base, ofs);
       } else {
         /* !!!TODO w or x */
-        if (ra_hasreg(type)) emit_lso(as, A64I_LDRw, type, base, ofs+4);
+        if (ra_hasreg(type)) emit_lso(as, A64I_LDRw, type, RID_TMP, 4);
         emit_lso(as, A64I_LDRd, dest, RID_TMP, 0);
         emit_opk(as, A64I_ADDx, RID_TMP, base, ofs, allow);
         return;
