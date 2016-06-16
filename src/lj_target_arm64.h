@@ -196,7 +196,7 @@ typedef enum A64Ins {
   A64I_SUBd = 0x7ee08400,
   A64I_FMADDd = 0x1f400000,
   A64I_FMULd = 0x1e600800,
-  A64I_FMULs = 0x1e200800,
+  A64I_FDIVd = 0x1e601800,
   A64I_STRd = 0xfd000000, /* str d0,[x0] */
   A64I_LDRd = 0xfd400000, /* ldr d0,[x0] */
 
