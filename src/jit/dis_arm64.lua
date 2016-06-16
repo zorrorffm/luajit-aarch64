@@ -963,18 +963,17 @@ local function disass_ins(ctx)
         x = "["..rn..", #"..imm7.."]!"
       end
     elseif p == "I" then
-      x = band(rshift(op, 22), 3)
+      local shf = band(rshift(op, 22), 3)
       local imm12 = band(rshift(op, 10), 0x0fff)
-      if x == 1 then
-        x = imm12..", lsl #12"
-      else
-        x = imm12
-      end
       local n = #operands
-      local rn, rd = band(rshift(op, 5), 31), band(op, 31)
-      if altname and imm12 == 0 and (rn == 31 or rd == 31) then
+      local rn, rd = band(rshift(op, 5), 31), band(op, 31)  -- TODO: repeated extract reg
+      if altname == "mov" and shf == 0 and imm12 == 0 and (rn == 31 or rd == 31) then
         name = altname
         x = nil
+      elseif shf == 0 then
+        x = imm12
+      elseif shf == 1 then
+        x = imm12..", lsl #12"
       end
     elseif p == "i" then
       x = parse_imm13(op)
