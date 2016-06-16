@@ -273,7 +273,51 @@ static void asm_tobit(ASMState *as, IRIns *ir)
 
 static void asm_conv(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);
+  int stfp = (st == IRT_NUM || st == IRT_FLOAT);
+  IRRef lref = ir->op1;
+  /* 64 bit integer conversions are handled by SPLIT. */
+  lua_assert(!irt_isint64(ir->t) && !(st == IRT_I64 || st == IRT_U64));
+  lua_assert(irt_type(ir->t) != st);
+  if (irt_isfp(ir->t)) {
+    Reg dest = ra_dest(as, ir, RSET_FPR);
+    if (stfp) {  /* FP to FP conversion. */
+      emit_dm(as, st == IRT_NUM ? A64I_FCVT_F32_F64 : A64I_FCVT_F64_F32,
+	      (dest & 31), (ra_alloc1(as, lref, RSET_FPR) & 31));
+    } else {  /* Integer to FP conversion. */
+      Reg left = ra_alloc1(as, lref, RSET_GPR);
+      A64Ins ai = irt_isfloat(ir->t) ?
+	(st == IRT_INT ? A64I_FCVT_F32_S32 : A64I_FCVT_F32_U32) :
+	(st == IRT_INT ? A64I_FCVT_F64_S32 : A64I_FCVT_F64_U32);
+      emit_dn(as, ai, (dest & 31), left);
+    }
+  } else if (stfp) {  /* FP to integer conversion. */
+    if (irt_isguard(ir->t)) {
+      /* Checked conversions are only supported from number to int. */
+      lua_assert(irt_isint(ir->t) && st == IRT_NUM);
+      asm_tointg(as, ir, ra_alloc1(as, lref, RSET_FPR));
+    } else {
+      Reg left = ra_alloc1(as, lref, RSET_FPR);
+      Reg dest = ra_dest(as, ir, RSET_GPR);
+      A64Ins ai;
+      ai = irt_isint(ir->t) ?
+	(st == IRT_NUM ? A64I_FCVT_S32_F64 : A64I_FCVT_S32_F32) :
+	(st == IRT_NUM ? A64I_FCVT_U32_F64 : A64I_FCVT_U32_F32);
+      emit_dm(as, ai, dest, (left & 31));
+    }
+  } else {
+    Reg dest = ra_dest(as, ir, RSET_GPR);
+    if (st >= IRT_I8 && st <= IRT_U16) {  /* Extend to 32 bit integer. */
+      Reg left = ra_alloc1(as, lref, RSET_GPR);
+      lua_assert(irt_isint(ir->t) || irt_isu32(ir->t));
+      A64Ins ai = st == IRT_I8 ? A64I_SXTBw :
+		  st == IRT_U8 ? A64I_UXTBw :
+		  st == IRT_I16 ? A64I_SXTHw : A64I_UXTHw;
+      emit_dm(as, ai, dest, left);
+    } else {  /* Handle 32/32 bit no-op (cast). */
+      ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
+    }
+  }
 }
 
 static void asm_strto(ASMState *as, IRIns *ir)
@@ -476,12 +520,11 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     if (irt_isnum(ir->t)) {
       src = ra_alloc1(as, ir->op2, RSET_FPR);
       idx = asm_fuseahuref(as, ir->op1, &ofs, allow, 1024); /* !!!TODO what is 1024 */
-      emit_lso(as, A64I_STRd, src, idx, ofs);
-    } else
-    {
+      emit_lso(as, A64I_STRd, (src & 31), idx, ofs);
+    } else {
       if (!irt_ispri(ir->t)) {
-        src = ra_alloc1(as, ir->op2, allow);
-        rset_clear(allow, src);
+	src = ra_alloc1(as, ir->op2, allow);
+	rset_clear(allow, src);
       }
       type = ra_allock(as, (int32_t)irt_toitype(ir->t)<<15, allow);
       idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, type), 4096);
@@ -592,7 +635,7 @@ static void asm_fparith(ASMState *as, IRIns *ir, A64Ins ai)
   Reg dest = ra_dest(as, ir, RSET_FPR);
   Reg right, left = ra_alloc2(as, ir, RSET_FPR);
   right = (left >> 8); left &= 255;
-  emit_dnm(as, ai, (dest & 15), (left & 15), (right & 15));
+  emit_dnm(as, ai, (dest & 31), (left & 31), (right & 31));
 }
 
 static void asm_fpunary(ASMState *as, IRIns *ir, A64Ins ai)

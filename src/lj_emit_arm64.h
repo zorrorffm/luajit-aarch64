@@ -57,14 +57,6 @@ static void emit_loadu64(ASMState *as, Reg rd, uint64_t u64)
   *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(u64 & 0xffff);
 }
 
-/* Load a number constant into an FPR. */
-/* !!!TODO maybe also GPR on arm64? */
-static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
-{
-  lua_unimpl();
-}
-
-
 /* Generic load of register with base and (small) offset address. */
 static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
@@ -135,6 +127,21 @@ rn, int32_t k, RegSet allow)
   {
     emit_ccmpr(as, ai, cond, nzcv, rn, ra_allock(as, k, allow));
   }
+}
+
+static Reg ra_scratch(ASMState *as, RegSet allow);
+
+/* Load 64 bit IR constant into register. */
+static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
+{
+  // TODO: This can probably be optimized.
+  Reg r64 = r;
+  uint64_t k = ir_k64(ir)->u64;
+  if (rset_test(RSET_FPR, r)) {
+    r64 = ra_scratch(as, RSET_GPR);
+    emit_dn(as, A64I_FMOV_D_R, (r & 31), r64);
+  }
+  emit_loadu64(as, r64, k);
 }
 
 /* -- Emit loads/stores --------------------------------------------------- */
