@@ -353,17 +353,17 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   IRIns *irkey = IR(kslot->op1);
   int32_t ofs = (int32_t)(kslot->op2 * sizeof(Node));
   int32_t kofs = ofs + (int32_t)offsetof(Node, key);
-  Reg dest = (ra_used(ir) || ofs > 4095) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
+  int large_ofs = check_offset(A64I_LDRx, ofs) == OFS_INVALID;
+  Reg dest = (ra_used(ir) || large_ofs) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
   Reg node = ra_alloc1(as, ir->op1, RSET_GPR);
   Reg key = RID_NONE, type = RID_TMP, idx = node;
   RegSet allow = rset_exclude(RSET_GPR, node);
   lua_assert(ofs % sizeof(Node) == 0);
-  /* !!!TODO check 4095 for AArch64 */
-  if (ofs > 4095) {
+  if (large_ofs) {
     idx = dest;
     rset_clear(allow, dest);
     kofs = (int32_t)offsetof(Node, key);
-lua_unimpl();
+    lua_unimpl();
   } else if (ra_hasreg(dest)) {
     emit_opk(as, A64I_ADDx, dest, node, ofs, allow); /*!!!TODO w or x */
   }
@@ -371,8 +371,6 @@ lua_unimpl();
 
   if (!irt_ispri(irkey->t)) {
     Reg key = ra_scratch(as, rset_exclude(RSET_GPR, node));
-//    emit_rmro(as, XO_CMP, key|REX_64, node,
-//               ofs + (int32_t)offsetof(Node, key.u64));
     emit_dnm(as, A64I_CMPx, 0, dest, key);
     lua_assert(irt_isnum(irkey->t) || irt_isgcv(irkey->t));
     /* !!!TODO is this valid on ARM64? */
@@ -382,14 +380,14 @@ lua_unimpl();
                           (uint64_t)ir_kgc(irkey));
     emit_lso(as, A64I_LDRx, dest, idx, kofs);
   } else {
-lua_unimpl();
+    lua_unimpl();
     lua_assert(!irt_isnil(irkey->t));
 //    emit_i32(as, (irt_toitype(irkey->t)<<15)|0x7fff);
 //    emit_rmro(as, XO_ARITHi, XOg_CMP, node,
 //              ofs + (int32_t)offsetof(Node, key.it));
   }
 
-  if (ofs > 4095)
+  if (large_ofs)
     emit_opk(as, A64I_ADDx, dest, node, ofs, RSET_GPR);
 }
 
