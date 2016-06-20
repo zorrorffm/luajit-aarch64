@@ -1175,8 +1175,8 @@ end
 
 -- Return register name for RID.
 local function regname(r)
-  if r < 32 then return map_reg.x[r] end
-  return map_reg.d[r-32]
+  if r < 32 then return map_regs.x[r] end
+  return map_regs.d[r-32]
 end
 
 -- Public module functions.
