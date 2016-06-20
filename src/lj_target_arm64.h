@@ -197,8 +197,11 @@ typedef enum A64Ins {
   A64I_FMADDd = 0x1f400000,
   A64I_FMULd = 0x1e600800,
   A64I_FDIVd = 0x1e601800,
+  A64I_FNEGd = 0x1e614000,
   A64I_STRd = 0xfd000000, /* str d0,[x0] */
   A64I_LDRd = 0xfd400000, /* ldr d0,[x0] */
+  A64I_STRs = 0xbd000000, /* str s0,[x0] */
+  A64I_LDRs = 0xbd400000, /* ldr s0,[x0] */
 
   A64I_FCVT_F32_F64 = 0x1e624000,
   A64I_FCVT_F64_F32 = 0x1e22c000,
@@ -211,6 +214,8 @@ typedef enum A64Ins {
   A64I_FCVT_U32_F64 = 0x1e650000,
   A64I_FCVT_U32_F32 = 0x1e250000,
 
+  A64I_FMOV_S = 0x1e200000,
+  A64I_FMOV_D = 0x1e600000,
   A64I_FMOV_R_S = 0x1e260000,
   A64I_FMOV_S_R = 0x1e270000,
   A64I_FMOV_R_D = 0x9e660000,
@@ -221,6 +226,8 @@ typedef enum A64Ins {
   A64I_CMPx = A64I_SUBSx | A64F_D (RID_ZERO),
   A64I_CMNx = A64I_ADDSx | A64F_D (RID_ZERO),
   A64I_CMNw = A64I_ADDSw | A64F_D (RID_ZERO),
+  A64I_NEGw = A64I_SUBw | A64F_N (RID_ZERO),
+  A64I_NEGx = A64I_SUBx | A64F_N (RID_ZERO),
 
   /* fields */
   A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */

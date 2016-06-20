@@ -584,6 +584,11 @@ dotypecheck:
     asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
     emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
   }
+
+  if (ra_hasreg(type)) {
+    emit_dn(as, A64I_ASRx|A64F_IR(47), type, dest);
+  }
+
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM) {
       if (check_offset(A64I_LDRd, ofs) != OFS_INVALID) {
@@ -598,7 +603,6 @@ dotypecheck:
     } else
       emit_lso(as, A64I_LDRx, dest, base, ofs); /* !!!!TODO w or x */
   }
-  if (ra_hasreg(type)) emit_lso(as, A64I_LDRx, type, base, ofs+4);
 }
 
 /* -- Allocations --------------------------------------------------------- */
@@ -636,7 +640,9 @@ static void asm_fparith(ASMState *as, IRIns *ir, A64Ins ai)
 
 static void asm_fpunary(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_FPR);
+  Reg left = ra_hintalloc(as, ir->op1, dest, RSET_FPR);
+  emit_dn(as, ai, (dest & 31), (left & 31));
 }
 
 static void asm_callround(ASMState *as, IRIns *ir, int id)
@@ -704,7 +710,9 @@ static void asm_intop_s(ASMState *as, IRIns *ir, A64Ins ai)
 
 static void asm_intneg(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg left = ra_hintalloc(as, ir->op1, dest, RSET_GPR);
+  emit_dm(as, ai, dest, left);
 }
 
 /* NYI: use add/shift for MUL(OV) with constants. FOLD only does 2^k. */
@@ -765,7 +773,13 @@ static void asm_mul(ASMState *as, IRIns *ir)
 
 static void asm_neg(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+#if !LJ_SOFTFP
+  if (irt_isnum(ir->t)) {
+    asm_fpunary(as, ir, A64I_FNEGd);
+    return;
+  }
+#endif
+  asm_intneg(as, ir, A64I_NEGx);
 }
 
 static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
