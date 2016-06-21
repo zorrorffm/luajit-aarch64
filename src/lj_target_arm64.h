@@ -135,6 +135,7 @@ typedef enum A64CC {
 #define A64F_A(r)       ((r) << 10)
 #define A64F_A_U(r)     ((r) << 12)
 #define A64F_M(r)       ((r) << 16)
+#define A64F_IS(n)	((n) << 10)
 #define A64F_IR(n)	((n) << 16)
 #define A64F_U16(x)	((x) << 5)
 #define A64F_S26(x)	(x)
@@ -186,6 +187,8 @@ typedef enum A64Ins {
 
   A64I_ASRw = 0x13007c00,
   A64I_ASRx = 0x9340fc00,
+  A64I_LSLx = 0xd3400000,
+  A64I_LSRx = 0xd340fc00,
 
   A64I_MULw = 0x1b007c00,
   A64I_MULx = 0x9b007c00,
@@ -198,10 +201,13 @@ typedef enum A64Ins {
   A64I_FMULd = 0x1e600800,
   A64I_FDIVd = 0x1e601800,
   A64I_FNEGd = 0x1e614000,
+  A64I_FABS = 0x1e60c000,
   A64I_STRd = 0xfd000000, /* str d0,[x0] */
   A64I_LDRd = 0xfd400000, /* ldr d0,[x0] */
   A64I_STRs = 0xbd000000, /* str s0,[x0] */
   A64I_LDRs = 0xbd400000, /* ldr s0,[x0] */
+  A64I_FCMPd = 0x1e602000,
+  A64I_FCMPZd = 0x1e602008,
 
   A64I_FCVT_F32_F64 = 0x1e624000,
   A64I_FCVT_F64_F32 = 0x1e22c000,

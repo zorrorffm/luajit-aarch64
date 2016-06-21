@@ -475,35 +475,56 @@ static void asm_xstore_(ASMState *as, IRIns *ir, int32_t ofs)
 
 static void asm_ahuvload(ASMState *as, IRIns *ir)
 {
-  IRType t = irt_type(ir->t);
-  Reg dest = RID_NONE, type = RID_NONE, idx;
-  RegSet allow = RSET_GPR;
+  Reg idx, tmp, type;
   int32_t ofs = 0;
-  uint32_t compare_tag;
+  RegSet gpr = RSET_GPR, allow = irt_isnum(ir->t) ? RSET_FPR : RSET_GPR;
+  lua_assert(irt_isnum(ir->t) || irt_ispri(ir->t) || irt_isaddr(ir->t) ||
+	     (LJ_DUALNUM && irt_isint(ir->t)));
   if (ra_used(ir)) {
-    lua_assert(irt_isnum(ir->t) || irt_isint(ir->t) || irt_isaddr(ir->t));
-    dest = ra_dest(as, ir, (t == IRT_NUM) ? RSET_FPR : allow);
-    rset_clear(allow, dest);
-  }
-  idx = asm_fuseahuref(as, ir->op1, &ofs, allow,
-                       (t == IRT_NUM) ? A64I_LDRd : A64I_LDRw);
-  type = RID_TMP;
-  asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
-  if (irt_type(ir->t) >= IRT_NUM)
-  {
-    compare_tag = (-irt_toitype(ir->t) << 15);
+    Reg dest = ra_dest(as, ir, allow);
+    rset_exclude(gpr, dest);
+    tmp = irt_isnum(ir->t) ? ra_scratch(as, gpr) : dest;
+    if (irt_isaddr(ir->t)) {
+      /* TODO: Implement AND. LSL->LSR is suboptimal. */
+      /* emit_opk(as, A64I_ANDx, dest, dest, LJ_GCVMASK, gpr); */
+      lua_todo();
+      emit_dn(as, A64I_LSRx|A64F_IR(17), dest, tmp);
+      emit_dn(as, A64I_LSLx|A64F_IR((-17%64)&0x3f)|A64F_IS(63-17), tmp, tmp);
+    } else if (irt_isnum(ir->t)) {
+      emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
+    }
+  } else
+    tmp = ra_scratch(as, gpr);
+  rset_exclude(gpr, tmp);
+  type = ra_scratch(as, gpr);
+  rset_exclude(gpr, type);
+  idx = asm_fuseahuref(as, ir->op1, &ofs, gpr, A64I_LDRx);
+  rset_exclude(gpr, idx);
+  /* Always do the type check, even if the load result is unused. */
+  asm_guardcc(as, irt_isnum(ir->t) ? CC_LO : CC_NE);
+  if (irt_type(ir->t) >= IRT_NUM) {
+    lua_assert(irt_isinteger(ir->t) || irt_isnum(ir->t));
+    /* TODO: Not tested. Is it better to allocate register or load constant
+     * every time? TISNUM should be quite commonly used constant, so allocating
+     * a register could be a good option. */
+    /* Reg tisnum = ra_allock(as, LJ_TISNUM << 15, gpr); */
+    lua_todo();
+    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), type, tmp);
+    emit_loadu64(as, type, LJ_TISNUM << 15);
+  } else if (irt_isaddr(ir->t)) {
+    emit_opk(as, A64I_CMNx, RID_ZERO, type, -irt_toitype(ir->t), gpr);
+    emit_dn(as, A64I_ASRx|A64F_IR(47), type, tmp);
+  } else if (irt_isnil(ir->t)) {
+    /* TODO: Not tested. */
+    lua_todo();
+    emit_opk(as, A64I_CMNx, RID_ZERO, tmp, -1, gpr);
   } else {
-    lua_unimpl(); /* !!!TODO refer to x86 for this */
-    compare_tag = 0;
+    /* TODO: Not tested. */
+    lua_todo();
+    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), type, tmp);
+    emit_loadu64(as, type, (irt_toitype(ir->t) << 15) | 0x7fff);
   }
-  emit_opk(as, A64I_CMNw, 1, type, compare_tag, allow);
-  if (ra_hasreg(dest)) {
-    if (t == IRT_NUM)
-      emit_lso(as, A64I_LDRd, dest, idx, ofs);
-    else
-      emit_lso(as, A64I_LDRw, dest, idx, ofs);
-  }
-  emit_lso(as, A64I_LDRw, type, idx, ofs+4);
+  emit_lso(as, A64I_LDRx, tmp, idx, ofs);
 }
 
 static void asm_ahustore(ASMState *as, IRIns *ir)
@@ -765,7 +786,7 @@ static void asm_mul(ASMState *as, IRIns *ir)
 
 #define asm_div(as, ir)		asm_fparith(as, ir, A64I_FDIVd)
 #define asm_pow(as, ir)		asm_callid(as, ir, IRCALL_lj_vm_powi)
-#define asm_abs(as, ir)		asm_fpunary(as, ir, /*ARMI_VABS_D*/0)
+#define asm_abs(as, ir)		asm_fpunary(as, ir, A64I_FABS)
 #define asm_atan2(as, ir)	asm_callid(as, ir, IRCALL_atan2)
 #define asm_ldexp(as, ir)	asm_callid(as, ir, IRCALL_ldexp)
 
@@ -850,7 +871,24 @@ static const uint8_t asm_compmap[IR_ABC+1] = {
 /* FP comparisons. */
 static void asm_fpcomp(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg left, right;
+  A64Ins ai;
+  int swp = ((ir->o ^ (ir->o >> 2)) & ~(ir->o >> 3) & 1);
+  if (!swp && irref_isk(ir->op2) && ir_knum(IR(ir->op2))->u64 == 0) {
+    left = (ra_alloc1(as, ir->op1, RSET_FPR) & 31);
+    right = 0;
+    ai = A64I_FCMPZd;
+  } else {
+    left = ra_alloc2(as, ir, RSET_FPR);
+    if (swp) {
+      right = (left & 31); left = ((left >> 8) & 31);
+    } else {
+      right = ((left >> 8) & 31); left &= 31;
+    }
+    ai = A64I_FCMPd;
+  }
+  asm_guardcc(as, (asm_compmap[ir->o] >> 4));
+  emit_nm(as, ai, left, right);
 }
 
 /* Integer comparisons. */
