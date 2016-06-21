@@ -272,6 +272,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
   int stfp = (st == IRT_NUM || st == IRT_FLOAT);
   IRRef lref = ir->op1;
   /* 64 bit integer conversions are handled by SPLIT. */
+  /* TODO: 64-bit conversions should be handled here? */
   lua_assert(!irt_isint64(ir->t) && !(st == IRT_I64 || st == IRT_U64));
   lua_assert(irt_type(ir->t) != st);
   if (irt_isfp(ir->t)) {
@@ -583,6 +584,11 @@ dotypecheck:
     asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
     emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
   }
+
+  if (ra_hasreg(type)) {
+    emit_dn(as, A64I_ASRx|A64F_IR(47), type, dest);
+  }
+
   if (ra_hasreg(dest)) {
     if (t == IRT_NUM) {
       if (check_offset(A64I_LDRd, ofs) != OFS_INVALID) {
@@ -597,7 +603,6 @@ dotypecheck:
     } else
       emit_lso(as, A64I_LDRx, dest, base, ofs); /* !!!!TODO w or x */
   }
-  if (ra_hasreg(type)) emit_lso(as, A64I_LDRx, type, base, ofs+4);
 }
 
 /* -- Allocations --------------------------------------------------------- */
@@ -635,7 +640,9 @@ static void asm_fparith(ASMState *as, IRIns *ir, A64Ins ai)
 
 static void asm_fpunary(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_FPR);
+  Reg left = ra_hintalloc(as, ir->op1, dest, RSET_FPR);
+  emit_dn(as, ai, (dest & 31), (left & 31));
 }
 
 static void asm_callround(ASMState *as, IRIns *ir, int id)
@@ -703,7 +710,9 @@ static void asm_intop_s(ASMState *as, IRIns *ir, A64Ins ai)
 
 static void asm_intneg(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg left = ra_hintalloc(as, ir->op1, dest, RSET_GPR);
+  emit_dm(as, ai, dest, left);
 }
 
 /* NYI: use add/shift for MUL(OV) with constants. FOLD only does 2^k. */
@@ -754,19 +763,23 @@ static void asm_mul(ASMState *as, IRIns *ir)
 #define asm_subov(as, ir)	asm_sub(as, ir)
 #define asm_mulov(as, ir)	asm_mul(as, ir)
 
-#if !LJ_SOFTFP
-#define asm_div(as, ir)		asm_fparith(as, ir, /*ARMI_VDIV_D*/0)
+#define asm_div(as, ir)		asm_fparith(as, ir, A64I_FDIVd)
 #define asm_pow(as, ir)		asm_callid(as, ir, IRCALL_lj_vm_powi)
 #define asm_abs(as, ir)		asm_fpunary(as, ir, /*ARMI_VABS_D*/0)
 #define asm_atan2(as, ir)	asm_callid(as, ir, IRCALL_atan2)
 #define asm_ldexp(as, ir)	asm_callid(as, ir, IRCALL_ldexp)
-#endif
 
 #define asm_mod(as, ir)		asm_callid(as, ir, IRCALL_lj_vm_modi)
 
 static void asm_neg(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+#if !LJ_SOFTFP
+  if (irt_isnum(ir->t)) {
+    asm_fpunary(as, ir, A64I_FNEGd);
+    return;
+  }
+#endif
+  asm_intneg(as, ir, A64I_NEGx);
 }
 
 static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)

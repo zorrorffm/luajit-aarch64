@@ -16,65 +16,6 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 #define emit_getgl(as, r, field) \
   emit_lsptr(as, A64I_LDRx, (r), (void *)&J2G(as->J)->field)
 
-
-/* Encode constant in K12 format for data processing instructions. */
-static uint32_t emit_isk12(A64Ins ai, int32_t n)
-{
-    if (n >= 0 && n <= 4095)
-    {
-        return (n & 4095) << 10;
-    }
-    if ((n & 4095) == 0 && n < (4095 << 12))
-    {
-        return (((n >> 12) & 4095) << 10) | (1 << 22);
-    }
-    return -1;
-}
-
-/* Load a 32 bit constant into a GPR. */
-static void emit_loadi(ASMState *as, Reg rd, int32_t i)
-{
-  /* !!!TODO handle wide move */
-  if (i & 0xffff0000) {
-    *--as->mcp = A64I_MOVK_16w | A64F_D(rd) | A64F_U16((i>>16) & 0xffff);
-  }
-  *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(i & 0xffff);
-}
-
-/* mov r, imm64 or shorter 32 bit extended load. */
-static void emit_loadu64(ASMState *as, Reg rd, uint64_t u64)
-{
-  /* !!!TODO plenty of ways to optimise this! */
-  if (u64 & 0xffff000000000000) {
-    *--as->mcp = A64I_MOVK_48x | A64F_D(rd) | A64F_U16((u64>>48) & 0xffff);
-  }
-  if (u64 & 0xffff00000000) {
-    *--as->mcp = A64I_MOVK_32x | A64F_D(rd) | A64F_U16((u64>>32) & 0xffff);
-  }
-  if (u64 & 0xffff0000) {
-    *--as->mcp = A64I_MOVK_16x | A64F_D(rd) | A64F_U16((u64>>16) & 0xffff);
-  }
-  *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(u64 & 0xffff);
-}
-
-/* Generic load of register with base and (small) offset address. */
-static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
-{
-  lua_unimpl();
-}
-
-/* Generic store of register with base and (small) offset address. */
-static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
-{
-  lua_unimpl();
-}
-
-/* Generic move between two regs. */
-static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
-{
-  lua_unimpl();
-}
-
 static void emit_n(ASMState *as, A64Ins ai, Reg rn)
 {
   *--as->mcp = ai | A64F_N(rn);
@@ -100,48 +41,18 @@ static void emit_dnm(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm)
   *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm);
 }
 
-/* Emit an arithmetic/logic operation with a constant operand. */
-static void emit_opk(ASMState *as, A64Ins ai, Reg dest, Reg src,
-                     int32_t i, RegSet allow)
+/* Encode constant in K12 format for data processing instructions. */
+static uint32_t emit_isk12(A64Ins ai, int32_t n)
 {
-  uint32_t k = emit_isk12(ai, i);
-  if (k != -1)
-    emit_dn(as, ai^k^A64I_BINOPk, dest, src);
-  else
-    emit_dnm(as, ai, dest, src, ra_allock(as, i, allow));
-}
-
-static void emit_ccmpr(ASMState *as, A64Ins ai, A64CC cond, int32_t nzcv, Reg
-rn, Reg rm)
-{
-  *--as->mcp = ai | A64F_N(rn) | A64F_M(rm) | A64F_NZCV(nzcv) | A64F_COND(cond);
-}
-
-static void emit_ccmpk(ASMState *as, A64Ins ai, A64CC cond, int32_t nzcv, Reg
-rn, int32_t k, RegSet allow)
-{
-  if (k >=0 && k <= 31)
-    *--as->mcp =
-      ai | A64F_N (rn) | A64F_M (k) | A64F_NZCV (nzcv) | A64F_COND (cond);
-  else
-  {
-    emit_ccmpr(as, ai, cond, nzcv, rn, ra_allock(as, k, allow));
-  }
-}
-
-static Reg ra_scratch(ASMState *as, RegSet allow);
-
-/* Load 64 bit IR constant into register. */
-static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
-{
-  // TODO: This can probably be optimized.
-  Reg r64 = r;
-  uint64_t k = ir_k64(ir)->u64;
-  if (rset_test(RSET_FPR, r)) {
-    r64 = ra_scratch(as, RSET_GPR);
-    emit_dn(as, A64I_FMOV_D_R, (r & 31), r64);
-  }
-  emit_loadu64(as, r64, k);
+    if (n >= 0 && n <= 4095)
+    {
+        return (n & 4095) << 10;
+    }
+    if ((n & 4095) == 0 && n < (4095 << 12))
+    {
+        return (((n >> 12) & 4095) << 10) | (1 << 22);
+    }
+    return -1;
 }
 
 /* -- Emit loads/stores --------------------------------------------------- */
@@ -208,6 +119,113 @@ static void emit_lsptr(ASMState *as, A64Ins ai, Reg r, void *p)
   *--as->mcp = A64I_MOVK_32x | A64F_D(tmp) | A64F_U16((i>>32) & 0xffff);
   *--as->mcp = A64I_MOVK_16x | A64F_D(tmp) | A64F_U16((i>>16) & 0xffff);
 
+}
+
+/* Load a 32 bit constant into a GPR. */
+static void emit_loadi(ASMState *as, Reg rd, int32_t i)
+{
+  /* !!!TODO handle wide move */
+  if (i & 0xffff0000) {
+    *--as->mcp = A64I_MOVK_16w | A64F_D(rd) | A64F_U16((i>>16) & 0xffff);
+  }
+  *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(i & 0xffff);
+}
+
+/* mov r, imm64 or shorter 32 bit extended load. */
+static void emit_loadu64(ASMState *as, Reg rd, uint64_t u64)
+{
+  /* !!!TODO plenty of ways to optimise this! */
+  if (u64 & 0xffff000000000000) {
+    *--as->mcp = A64I_MOVK_48x | A64F_D(rd) | A64F_U16((u64>>48) & 0xffff);
+  }
+  if (u64 & 0xffff00000000) {
+    *--as->mcp = A64I_MOVK_32x | A64F_D(rd) | A64F_U16((u64>>32) & 0xffff);
+  }
+  if (u64 & 0xffff0000) {
+    *--as->mcp = A64I_MOVK_16x | A64F_D(rd) | A64F_U16((u64>>16) & 0xffff);
+  }
+  *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(u64 & 0xffff);
+}
+
+/* Generic load of register with base and (small) offset address. */
+static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
+{
+#if LJ_SOFTFP
+  lua_assert(!irt_isnum(ir->t)); UNUSED(ir);
+#else
+  if (r >= RID_MAX_GPR)
+    emit_lso(as, irt_isnum(ir->t) ? A64I_LDRd : A64I_LDRs, r, base, ofs);
+  else
+#endif
+    emit_lso(as, A64I_LDRx, r, base, ofs);
+}
+
+/* Generic store of register with base and (small) offset address. */
+static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
+{
+  lua_unimpl();
+}
+
+/* Generic move between two regs. */
+static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
+{
+#if LJ_SOFTFP
+  lua_assert(!irt_isnum(ir->t)); UNUSED(ir);
+#else
+  if (dst >= RID_MAX_GPR) {
+    emit_dm(as, irt_isnum(ir->t) ? A64I_FMOV_D : A64I_FMOV_S,
+     (dst & 31), (src & 31));
+    return;
+  }
+#endif
+
+// TODO: add swapping early registers for loads/stores?
+
+  emit_dm(as, A64I_MOVx, dst, src);
+}
+
+/* Emit an arithmetic/logic operation with a constant operand. */
+static void emit_opk(ASMState *as, A64Ins ai, Reg dest, Reg src,
+                     int32_t i, RegSet allow)
+{
+  uint32_t k = emit_isk12(ai, i);
+  if (k != -1)
+    emit_dn(as, ai^k^A64I_BINOPk, dest, src);
+  else
+    emit_dnm(as, ai, dest, src, ra_allock(as, i, allow));
+}
+
+static void emit_ccmpr(ASMState *as, A64Ins ai, A64CC cond, int32_t nzcv, Reg
+rn, Reg rm)
+{
+  *--as->mcp = ai | A64F_N(rn) | A64F_M(rm) | A64F_NZCV(nzcv) | A64F_COND(cond);
+}
+
+static void emit_ccmpk(ASMState *as, A64Ins ai, A64CC cond, int32_t nzcv, Reg
+rn, int32_t k, RegSet allow)
+{
+  if (k >=0 && k <= 31)
+    *--as->mcp =
+      ai | A64F_N (rn) | A64F_M (k) | A64F_NZCV (nzcv) | A64F_COND (cond);
+  else
+  {
+    emit_ccmpr(as, ai, cond, nzcv, rn, ra_allock(as, k, allow));
+  }
+}
+
+static Reg ra_scratch(ASMState *as, RegSet allow);
+
+/* Load 64 bit IR constant into register. */
+static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
+{
+  // TODO: This can probably be optimized.
+  Reg r64 = r;
+  uint64_t k = ir_k64(ir)->u64;
+  if (rset_test(RSET_FPR, r)) {
+    r64 = ra_scratch(as, RSET_GPR);
+    emit_dn(as, A64I_FMOV_D_R, (r & 31), r64);
+  }
+  emit_loadu64(as, r64, k);
 }
 
 /* -- Emit control-flow instructions -------------------------------------- */
