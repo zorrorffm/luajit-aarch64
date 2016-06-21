@@ -871,7 +871,24 @@ static const uint8_t asm_compmap[IR_ABC+1] = {
 /* FP comparisons. */
 static void asm_fpcomp(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg left, right;
+  A64Ins ai;
+  int swp = ((ir->o ^ (ir->o >> 2)) & ~(ir->o >> 3) & 1);
+  if (!swp && irref_isk(ir->op2) && ir_knum(IR(ir->op2))->u64 == 0) {
+    left = (ra_alloc1(as, ir->op1, RSET_FPR) & 31);
+    right = 0;
+    ai = A64I_FCMPZd;
+  } else {
+    left = ra_alloc2(as, ir, RSET_FPR);
+    if (swp) {
+      right = (left & 31); left = ((left >> 8) & 31);
+    } else {
+      right = ((left >> 8) & 31); left &= 31;
+    }
+    ai = A64I_FCMPd;
+  }
+  asm_guardcc(as, (asm_compmap[ir->o] >> 4));
+  emit_nm(as, ai, left, right);
 }
 
 /* Integer comparisons. */
