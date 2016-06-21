@@ -962,7 +962,73 @@ static void asm_stack_check(ASMState *as, BCReg topslot,
 /* Restore Lua stack from on-trace state. */
 static void asm_stack_restore(ASMState *as, SnapShot *snap)
 {
-    lua_unimpl();
+  SnapEntry *map = &as->T->snapmap[snap->mapofs];
+  SnapEntry *flinks = &as->T->snapmap[snap_nextofs(as->T, snap)-1-LJ_FR2];
+  MSize n, nent = snap->nent;
+  /* Store the value of all modified slots to the Lua stack. */
+  for (n = 0; n < nent; n++) {
+    SnapEntry sn = map[n];
+    BCReg s = snap_slot(sn);
+    int32_t ofs = 8*((int32_t)s-1);
+    IRRef ref = snap_ref(sn);
+    IRIns *ir = IR(ref);
+    if ((sn & SNAP_NORESTORE))
+      continue;
+    if (irt_isnum(ir->t)) {
+      Reg src = ra_alloc1(as, ref, RSET_FPR);
+      emit_lso(as, A64I_STRd, src, RID_BASE, ofs);
+    } else {
+      lua_assert(irt_ispri(ir->t) || irt_isaddr(ir->t) ||
+                 (LJ_DUALNUM && irt_isinteger(ir->t)));
+      if (!irref_isk(ref)) {
+        Reg src = ra_alloc1(as, ref, rset_exclude(RSET_GPR, RID_BASE));
+        if (irt_is64(ir->t)) {
+          /* TODO: 64 bit store + 32 bit load-modify-store is suboptimal. */
+          emit_lso(as, A64I_STRw, RID_TMP, RID_BASE, ofs+4);
+          emit_opk(as, A64I_ORRw, 0, RID_TMP, -(irt_toitype(ir->t)<<15), RSET_GPR);
+          emit_lso(as, A64I_LDRw, RID_TMP, RID_BASE, ofs+4);
+
+          //emit_u32(as, irt_toitype(ir->t) << 15);
+          //emit_rmro(as, XO_ARITHi, XOg_OR, RID_BASE, ofs+4);
+        } else if (LJ_DUALNUM && irt_isinteger(ir->t)) {
+          emit_lso(as, A64I_STRw, RID_TMP, RID_BASE, ofs+4);
+          emit_loadi(as, RID_TMP, LJ_TISNUM << 15);
+
+          //emit_movmroi(as, RID_BASE, ofs+4, LJ_TISNUM << 15);
+        } else {
+          emit_lso(as, A64I_STRw, RID_TMP, RID_BASE, ofs+4);
+          emit_loadi(as, RID_TMP, (irt_toitype(ir->t)<<15)|0x7fff);
+
+          //emit_movmroi(as, RID_BASE, ofs+4, (irt_toitype(ir->t)<<15)|0x7fff);
+        }
+        if (irt_is64(ir->t))
+        {
+          emit_lso(as, A64I_STRx, src, RID_BASE, ofs);
+          //emit_movtomro(as, REX_64IR(ir, src), RID_BASE, ofs);
+        } else {
+          emit_lso(as, A64I_STRw, src, RID_BASE, ofs);
+          //emit_movtomro(as, REX_64IR(ir, src), RID_BASE, ofs);
+        }
+      } else {
+        TValue k;
+        lj_ir_kvalue(as->J->L, &k, ir);
+        if (tvisnil(&k)) {
+          emit_lso(as, A64I_STRx, RID_TMP, RID_BASE, ofs);
+          // !!!TODO (uint32_t)-1 or (uint64_t)-1
+          emit_loadu64(as, RID_TMP, 0xffffffff);
+          //emit_i32(as, -1);
+          //emit_rmro(as, XO_MOVmi, REX_64, RID_BASE, ofs);
+        } else {
+          emit_lso(as, A64I_STRx, RID_TMP, RID_BASE, ofs);
+          emit_loadu64(as, RID_TMP, k.u64);
+          //emit_movmroi(as, RID_BASE, ofs+4, k.u32.hi);
+          //emit_movmroi(as, RID_BASE, ofs, k.u32.lo);
+        }
+      }
+    }
+    checkmclim(as);
+  }
+  lua_assert(map + nent == flinks);
 }
 
 /* -- GC handling --------------------------------------------------------- */
