@@ -482,7 +482,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
 	     (LJ_DUALNUM && irt_isint(ir->t)));
   if (ra_used(ir)) {
     Reg dest = ra_dest(as, ir, allow);
-    rset_exclude(gpr, dest);
+    gpr = rset_exclude(gpr, dest);
     tmp = irt_isnum(ir->t) ? ra_scratch(as, gpr) : dest;
     if (irt_isaddr(ir->t)) {
       /* TODO: Implement AND. LSL->LSR is suboptimal. */
@@ -495,11 +495,11 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
     }
   } else
     tmp = ra_scratch(as, gpr);
-  rset_exclude(gpr, tmp);
+  gpr = rset_exclude(gpr, tmp);
   type = ra_scratch(as, gpr);
-  rset_exclude(gpr, type);
+  gpr = rset_exclude(gpr, type);
   idx = asm_fuseahuref(as, ir->op1, &ofs, gpr, A64I_LDRx);
-  rset_exclude(gpr, idx);
+  gpr = rset_exclude(gpr, idx);
   /* Always do the type check, even if the load result is unused. */
   asm_guardcc(as, irt_isnum(ir->t) ? CC_LO : CC_NE);
   if (irt_type(ir->t) >= IRT_NUM) {
