@@ -34,6 +34,7 @@
 --    r  Augment the IR with register/stack slots.
 --    s  Dump the snapshot map.
 --  * m  Dump the generated machine code.
+--  * M  Dump the IR with interleaved machine code
 --    x  Print each taken trace exit.
 --    X  Print each taken trace exit and the contents of all registers.
 --    a  Print the IR of aborted traces, too.
@@ -59,7 +60,7 @@ assert(jit.version_num == 20100, "LuaJIT core/library version mismatch")
 local jutil = require("jit.util")
 local vmdef = require("jit.vmdef")
 local funcinfo, funcbc = jutil.funcinfo, jutil.funcbc
-local traceinfo, traceir, tracek = jutil.traceinfo, jutil.traceir, jutil.tracek
+local traceinfo, traceir, traceirmc, tracek = jutil.traceinfo, jutil.traceir, jutil.traceirmc, jutil.tracek
 local tracemc, tracesnap = jutil.tracemc, jutil.tracesnap
 local traceexitstub, ircalladdr = jutil.traceexitstub, jutil.ircalladdr
 local bit = require("bit")
@@ -433,6 +434,10 @@ local function dumpcallargs(tr, ins)
   end
 end
 
+local function dump_ir_write(s)
+  out:write(format("\t@ %s", s))
+end
+
 -- Dump IR and interleaved snapshots.
 local function dump_ir(tr, dumpsnap, dumpreg)
   local info = traceinfo(tr)
@@ -447,6 +452,25 @@ local function dump_ir(tr, dumpsnap, dumpreg)
     snapref = snap[0]
     snapno = 0
   end
+
+  -- Create machine code dump context
+  if not disass then disass = require("jit.dis_"..jit.arch) end
+  local first_ins = 1
+  local addr_ir_start1 = traceirmc(tr, first_ins)
+  local mcode, addr = tracemc(tr)
+
+  if addr < 0 then addr = addr + 2^32 end
+  if addr_ir_start1 < 0 then addr_ir_start1 = addr_ir_start1 + 2^32 end
+
+  local ctx = disass.create(mcode, addr, dump_ir_write)
+  ctx.hexdump = 0
+  ctx.symtab = fillsymtab(tr, info.nexit)
+
+  if dumpmode.M then
+    out:write("0000\tTrace head\n")
+    ctx:disass(0, addr_ir_start1 - addr)
+  end
+
   for ins=1,nins do
     if ins >= snapref then
       if dumpreg then
@@ -518,6 +542,21 @@ local function dump_ir(tr, dumpsnap, dumpreg)
 	end
       end
       out:write("\n")
+      if dumpmode.M then
+        local addr_ir_start, addr_ir_end = traceirmc(tr, ins)
+        if addr_ir_start < 0 then addr_ir_start = addr_ir_start + 2^32 end
+        if addr_ir_end < 0 then addr_ir_end = addr_ir_end + 2^32 end
+        -- TODO use macro defined in native code:
+        --   JIT_DUMP_MCODE_EMPTY_IR 0
+        --   JIT_DUMP_MCODE_END 1
+        if addr_ir_start ~= 0 then
+          if addr_ir_end ~= 1 then
+            ctx:disass(addr_ir_start - addr, (addr_ir_end - addr_ir_start))
+          else
+            ctx:disass(addr_ir_start - addr, addr + #mcode - addr_ir_start)
+          end
+        end
+      end
     end
   end
   if snap then
@@ -658,7 +697,7 @@ local function dumpon(opt, outfile)
     opt = gsub(opt, "[TAH]", function(mode) colormode = mode; return ""; end)
   end
 
-  local m = { t=true, b=true, i=true, m=true, }
+  local m = { t=true, b=true, i=true, M=true, }
   if opt and opt ~= "" then
     local o = sub(opt, 1, 1)
     if o ~= "+" and o ~= "-" then m = {} end
