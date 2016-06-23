@@ -262,7 +262,13 @@ static void asm_tointg(ASMState *as, IRIns *ir, Reg left)
 
 static void asm_tobit(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  RegSet allow = RSET_FPR;
+  Reg left = ra_alloc1(as, ir->op1, allow);
+  Reg right = ra_alloc1(as, ir->op2, rset_clear(allow, left));
+  Reg tmp = ra_scratch(as, rset_clear(allow, right));
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  emit_dn(as, A64I_FMOV_R_S, dest, (tmp & 31));
+  emit_dnm(as, A64I_ADDd, (tmp & 31), (left & 31), (right & 31));
 }
 #endif
 
