@@ -175,7 +175,7 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
   if (ra_hasreg(ir->r)) {
     ra_noweak(as, ir->r);
     return A64F_M(ir->r);
-  } else if (irref_isk(ref)) {
+  } else if (irref_isk(ref) && !irt_is64(ir->t)) {
     uint32_t k = emit_isk12(ai, ir->i);
     if (k != -1)
       return k ^ A64I_BINOPk;
