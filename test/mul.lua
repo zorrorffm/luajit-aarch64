@@ -1,9 +1,9 @@
-x = 1
+x = -1
 
 for i = 1, 100 do
-  x = x * i
+  x = x * -1
 end
 
-y = 0
+y = -1
 
 assert(x == y, "Got " .. x .. ", expect " .. y)
