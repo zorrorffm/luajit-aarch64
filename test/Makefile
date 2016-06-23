@@ -2,7 +2,7 @@
 LUAJIT?=luajit
 LUA_FLAGS?=-jdump=+rsXa
 # Define tests which should be skipped for some reasons.
-SKIPPED_LUA_TEST=mul div
+SKIPPED_LUA_TEST=div calln callxs
 
 # Find all tests inside the folder.
 LUA_TEST_SRC=$(wildcard *.lua)

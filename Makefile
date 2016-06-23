@@ -164,8 +164,9 @@ clean:
 
 ##############################################################################
 
+LUAJIT?=$(shell pwd)/src/luajit
 define RUN_LUA_TEST
-$(MAKE) LUAJIT="$(LUA_EXECUTOR) $(shell pwd)/src/luajit" LUA_PATH="$(shell pwd)/src/?.lua;;" -C test $@
+$(MAKE) LUAJIT="$(LUA_EXECUTOR) $(LUAJIT)" LUA_PATH="$(shell pwd)/src/?.lua;;" -C test $@
 endef
 
 test: all
