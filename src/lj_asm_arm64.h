@@ -268,7 +268,7 @@ static void asm_tobit(ASMState *as, IRIns *ir)
   Reg tmp = ra_scratch(as, rset_clear(allow, right));
   Reg dest = ra_dest(as, ir, RSET_GPR);
   emit_dn(as, A64I_FMOV_R_S, dest, (tmp & 31));
-  emit_dnm(as, A64I_ADDd, (tmp & 31), (left & 31), (right & 31));
+  emit_dnm(as, A64I_FADDd, (tmp & 31), (left & 31), (right & 31));
 }
 #endif
 
@@ -760,7 +760,7 @@ static void asm_add(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
     if (!asm_fusemadd(as, ir, A64I_FMADDd, A64I_FMADDd))
-      asm_fparith(as, ir, A64I_ADDd);
+      asm_fparith(as, ir, A64I_FADDd);
     return;
   }
   asm_intop_s(as, ir, A64I_ADDw); /* !!!TODO this drops the tag, is it wrong? */
@@ -769,7 +769,7 @@ static void asm_add(ASMState *as, IRIns *ir)
 static void asm_sub(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
-    asm_fparith(as, ir, A64I_SUBd);
+    asm_fparith(as, ir, A64I_FSUBd);
     return;
   }
   asm_intop_s(as, ir, A64I_SUBw); /* !!!TODO this drops the tag, is it wrong? */
