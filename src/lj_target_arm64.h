@@ -197,8 +197,8 @@ typedef enum A64Ins {
   A64I_SMULL = 0x9b207c00,
 
   /* FP */
-  A64I_ADDd = 0x5ee08400,
-  A64I_SUBd = 0x7ee08400,
+  A64I_FADDd = 0x1e602800,
+  A64I_FSUBd = 0x1e603800,
   A64I_FMADDd = 0x1f400000,
   A64I_FMULd = 0x1e600800,
   A64I_FDIVd = 0x1e601800,
