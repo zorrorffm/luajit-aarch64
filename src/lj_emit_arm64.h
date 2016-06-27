@@ -163,7 +163,11 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 /* Generic store of register with base and (small) offset address. */
 static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
-  lua_unimpl();
+  if (r >= RID_MAX_GPR) {
+    emit_lso(as, irt_isnum(ir->t) ? A64I_STRd : A64I_STRs, r, base, ofs);
+  } else {
+    emit_lso(as, A64I_STRx, r, base, ofs);
+  }
 }
 
 /* Generic move between two regs. */
@@ -266,4 +270,15 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
 #define emit_spsub(as, ofs)                   emit_addptr(as, RID_SP, -(ofs))
 #define emit_setgl(as, r, field)              lua_unimpl()
 
-
+static void emit_call(ASMState *as, void *target)
+{
+  static const int32_t imm_bits = 26;
+  MCode *p = --as->mcp;
+  ptrdiff_t delta = (char *)target - (char *)p;
+  delta >>= 2;
+  if ((delta + (1 << (imm_bits -1))) >= 0) {
+    *p = A64I_BL | (delta & ((1 << imm_bits) - 1));
+  } else {  /* Target out of range. */
+    lua_unimpl();
+  }
+}
