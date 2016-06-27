@@ -230,13 +230,64 @@ static int asm_fusemadd(ASMState *as, IRIns *ir, A64Ins ai, A64Ins air)
 /* Generate a call to a C function. */
 static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 {
-    lua_unimpl();
+  uint32_t n, nargs = CCI_XNARGS(ci);
+  int32_t ofs = 0;
+  Reg gpr, fpr = REGARG_FIRSTFPR;
+
+  if ((void *)ci->func) {
+    emit_call(as, (void *)ci->func);
+  }
+
+  for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++)
+    as->cost[gpr] = REGCOST(~0u, ASMREF_L);
+  gpr = REGARG_FIRSTGPR;
+
+  for (n = 0; n < nargs; n++) { /* Setup args. */
+    IRRef ref = args[n];
+    IRIns *ir = IR(ref);
+    // TODO: check the case (ci->flags & CCI_VARARG)
+    if (ref) {
+      if (irt_isfp(ir->t)) {
+        if (fpr <= REGARG_LASTFPR) {
+          lua_assert(rset_test(as->freeset, fpr)); /* Must have been evicted. */
+          ra_leftov(as, fpr, ref);
+          fpr++;
+        } else {
+          Reg r = ra_alloc1(as, ref, RSET_FPR);
+          emit_spstore(as, ir, r, ofs);
+          ofs += 8;
+        }
+      } else {
+        if (gpr <= REGARG_LASTGPR) {
+          lua_assert(rset_test(as->freeset, gpr)); /* Must have been evicted. */
+          ra_leftov(as, gpr, ref);
+          gpr++;
+        } else {
+          Reg r = ra_alloc1(as, ref, RSET_GPR);
+          emit_spstore(as, ir, r, ofs);
+          ofs += 8;
+        }
+      }
+    }
+  }
 }
 
 /* Setup result reg/sp for call. Evict scratch regs. */
 static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
 {
-    lua_unimpl();
+  RegSet drop = RSET_SCRATCH;
+  if (ra_hasreg(ir->r))
+    rset_clear(drop, ir->r); /* Dest reg handled below. */
+  ra_evictset(as, drop); /* Evictions must be performed first. */
+  if (ra_used(ir)) {
+    lua_assert(!irt_ispri(ir->t));
+    if (irt_isfp(ir->t)) {
+      ra_destreg(as, ir, RID_FPRET);
+    } else {
+      ra_destreg(as, ir, RID_RET);
+    }
+  }
+  UNUSED(ci);
 }
 
 static void asm_callx(ASMState *as, IRIns *ir)
@@ -1121,8 +1172,31 @@ static void asm_tail_prep(ASMState *as)
 /* Ensure there are enough stack slots for call arguments. */
 static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
 {
-    lua_unimpl();
-    return 0;
+  IRRef args[CCI_NARGS_MAX * 2];
+  uint32_t i, nargs = CCI_XNARGS(ci);
+  int nslots = 0, ngpr = REGARG_NUMGPR, nfpr = REGARG_NUMFPR;
+  asm_collectargs(as, ir, ci, args);
+  for (i = 0; i < nargs; i++) {
+    // TODO: check the case (ci->flags & CCI_VARARG)
+    if (args[i] && irt_isfp(IR(args[i])->t)) {
+      if (nfpr > 0) {
+        nfpr--;
+      } else {
+        nslots++;
+      }
+    } else {
+      if (ngpr > 0) {
+        ngpr--;
+      } else {
+        nslots++;
+      }
+    }
+  }
+  if (nslots > as->evenspill) {
+    as->evenspill = nslots;
+  }
+  // TODO : Return REGSP_HINT(RID_FPRET) for floating numbers?
+  return REGSP_HINT(RID_RET);
 }
 
 static void asm_setup_target(ASMState *as)
