@@ -16,6 +16,11 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 #define emit_getgl(as, r, field) \
   emit_lsptr(as, A64I_LDRx, (r), (void *)&J2G(as->J)->field)
 
+static void emit_d(ASMState *as, A64Ins ai, Reg rd)
+{
+  *--as->mcp = ai | A64F_D(rd);
+}
+
 static void emit_n(ASMState *as, A64Ins ai, Reg rn)
 {
   *--as->mcp = ai | A64F_N(rn);

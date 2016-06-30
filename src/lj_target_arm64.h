@@ -169,8 +169,12 @@ typedef enum A64Ins {
   A64I_Bcond = 0x54000000,
   A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
+  A64I_ANDw = 0x0a000000,
+  A64I_ANDx = 0x8a000000,
   A64I_ORRw = 0x2a000000, /* orr w0,w0,w0 */
   A64I_ORRx = 0xaa000000, /* orr x0,x0,x0 */
+  A64I_EORw = 0x4a000000,
+  A64I_EORx = 0xca000000,
   A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
   A64I_CCMPx = 0xfa400000, /* ccmp x0,x0,#0,eq */
   A64I_STRBw = 0x39000000, /* strb w0,[x0] */
@@ -191,6 +195,8 @@ typedef enum A64Ins {
   A64I_ASRx = 0x9340fc00,
   A64I_LSLx = 0xd3400000,
   A64I_LSRx = 0xd340fc00,
+  A64I_MVNw = 0x2a2003e0,
+  A64I_MVNx = 0xaa2003e0,
 
   A64I_MULw = 0x1b007c00,
   A64I_MULx = 0x9b007c00,
