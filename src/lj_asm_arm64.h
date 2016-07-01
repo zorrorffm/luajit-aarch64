@@ -113,6 +113,21 @@ static void asm_guardcc(ASMState *as, A64CC cc)
 /* Limit linear search to this distance. Avoids O(n^2) behavior. */
 #define CONFLICT_SEARCH_LIM	31
 
+static int asm_isk32(ASMState *as, IRRef ref, int32_t *k)
+{
+  if (irref_isk(ref)) {
+    IRIns *ir = IR(ref);
+    if (ir->o == IR_KNULL || !irt_is64(ir->t)) {
+      *k = ir->i;
+      return 1;
+    } else if (checki32((int64_t)ir_k64(ir)->u64)) {
+      *k = (int32_t)ir_k64(ir)->u64;
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /* Check if there's no conflicting instruction between curins and ref. */
 static int noconflict(ASMState *as, IRRef ref, IROp conflict)
 {
@@ -213,7 +228,59 @@ static IRRef asm_fuselsl2(ASMState *as, IRRef ref)
 static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
 			 RegSet allow, int32_t ofs)
 {
-    lua_unimpl();
+  IRIns *ir = IR(ref);
+  Reg base;
+  ofs_type ot1;
+
+  if (ra_noreg(ir->r) && canfuse(as, ir)) {
+    ot1 = check_offset(ai, ofs);
+    if (ir->o == IR_ADD) {
+      int32_t ofs2;
+      ofs_type ot2;
+      if (asm_isk32(as, ir->op2, &ofs2) &&
+	  (ot2 = check_offset(ai, (ofs2 = ofs + ofs2))) >= OFS_SCALED_0) {
+	ofs = ofs2;
+	ref = ir->op1;
+      } else if (ofs == 0 && ot1 == OFS_UNSCALED) {
+	IRRef lref = ir->op1, rref = ir->op2;
+	Reg rn, rm;
+	rn = ra_alloc1(as, lref, allow);
+	rm = ra_alloc1(as, rref, rset_exclude(allow, rn));
+	/* Transform from unsigned immediate offset to register offset. */
+	emit_dnm(as, (ai & 0xfeffffff) | 0x00206800, (rd & 31), rn, rm);
+	return;
+      }
+    } else if (ir->o == IR_STRREF && ot1 == OFS_UNSCALED) {
+      /* TODO: This path is not tested, but looks more or less good. */
+      lua_unimpl();
+      lua_assert(ofs == 0);
+      ofs = (int32_t)sizeof(GCstr);
+      /* TODO: This should probably be tested with asm_isk32. */
+      if (irref_isk(ir->op2)) {
+	ofs += IR(ir->op2)->i;
+	ref = ir->op1;
+      } else if (irref_isk(ir->op1)) {
+	ofs += IR(ir->op1)->i;
+	ref = ir->op2;
+      } else {
+	/* NYI: Fuse ADD with constant. */
+	Reg rn = ra_alloc1(as, ir->op1, allow);
+	uint32_t m = asm_fuseopm(as, 0, ir->op2, rset_exclude(allow, rn));
+	emit_lso(as, ai, rd, rd, ofs);
+	emit_dn(as, A64I_ADDx^m, rd, rn);
+	return;
+      }
+      if (check_offset(ai, ofs) == OFS_INVALID) {
+	Reg rn = ra_alloc1(as, ref, allow);
+	Reg rm = ra_allock(as, ofs, rset_exclude(allow, rn));
+	/* Transform from unsigned immediate offset to register offset. */
+	emit_dnm(as, (ai & 0xfeffffff) | 0x00204800, rd, rn, rm);
+	return;
+      }
+    }
+  }
+  base = ra_alloc1(as, ref, allow);
+  emit_lso(as, ai, (rd & 31), base, ofs);
 }
 
 /* Fuse to multiply-add/sub instruction. */
@@ -305,10 +372,16 @@ static void asm_retf(ASMState *as, IRIns *ir)
 
 /* -- Type conversions ---------------------------------------------------- */
 
-#if !LJ_SOFTFP
 static void asm_tointg(ASMState *as, IRIns *ir, Reg left)
 {
-    lua_unimpl();
+  /* TODO: This hasn't been tested yet. */
+  lua_unimpl();
+  Reg tmp = ra_scratch(as, rset_exclude(RSET_FPR, left));
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  asm_guardcc(as, CC_NE);
+  emit_dm(as, A64I_FCMPd, (tmp & 31), (left & 31));
+  emit_dm(as, A64I_FCVT_F64_S32, (tmp & 31), dest);
+  emit_dm(as, A64I_FCVT_S32_F64, dest, (left & 31));
 }
 
 static void asm_tobit(ASMState *as, IRIns *ir)
@@ -321,16 +394,12 @@ static void asm_tobit(ASMState *as, IRIns *ir)
   emit_dn(as, A64I_FMOV_R_S, dest, (tmp & 31));
   emit_dnm(as, A64I_FADDd, (tmp & 31), (left & 31), (right & 31));
 }
-#endif
 
 static void asm_conv(ASMState *as, IRIns *ir)
 {
   IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);
   int stfp = (st == IRT_NUM || st == IRT_FLOAT);
   IRRef lref = ir->op1;
-  /* 64 bit integer conversions are handled by SPLIT. */
-  /* TODO: 64-bit conversions should be handled here? */
-  lua_assert(!irt_isint64(ir->t) && !(st == IRT_I64 || st == IRT_U64));
   lua_assert(irt_type(ir->t) != st);
   if (irt_isfp(ir->t)) {
     Reg dest = ra_dest(as, ir, RSET_FPR);
@@ -340,8 +409,12 @@ static void asm_conv(ASMState *as, IRIns *ir)
     } else {  /* Integer to FP conversion. */
       Reg left = ra_alloc1(as, lref, RSET_GPR);
       A64Ins ai = irt_isfloat(ir->t) ?
-	(st == IRT_INT ? A64I_FCVT_F32_S32 : A64I_FCVT_F32_U32) :
-	(st == IRT_INT ? A64I_FCVT_F64_S32 : A64I_FCVT_F64_U32);
+	(((IRT_IS64 >> st) & 1) ?
+	(st == IRT_I64 ? A64I_FCVT_F32_S64 : A64I_FCVT_F32_U64) :
+	(st == IRT_INT ? A64I_FCVT_F32_S32 : A64I_FCVT_F32_U32)) :
+	(((IRT_IS64 >> st) & 1) ?
+	(st == IRT_I64 ? A64I_FCVT_F64_S64 : A64I_FCVT_F64_U64) :
+	(st == IRT_INT ? A64I_FCVT_F64_S32 : A64I_FCVT_F64_U32));
       emit_dn(as, ai, (dest & 31), left);
     }
   } else if (stfp) {  /* FP to integer conversion. */
@@ -352,11 +425,14 @@ static void asm_conv(ASMState *as, IRIns *ir)
     } else {
       Reg left = ra_alloc1(as, lref, RSET_FPR);
       Reg dest = ra_dest(as, ir, RSET_GPR);
-      A64Ins ai;
-      ai = irt_isint(ir->t) ?
-	(st == IRT_NUM ? A64I_FCVT_S32_F64 : A64I_FCVT_S32_F32) :
-	(st == IRT_NUM ? A64I_FCVT_U32_F64 : A64I_FCVT_U32_F32);
-      emit_dm(as, ai, dest, (left & 31));
+      A64Ins ai = irt_is64(ir->t) ?
+	(st == IRT_NUM ?
+	(irt_isi64(ir->t) ? A64I_FCVT_S64_F64 : A64I_FCVT_U64_F64) :
+	(irt_isi64(ir->t) ? A64I_FCVT_S64_F32 : A64I_FCVT_U64_F32)) :
+	(st == IRT_NUM ?
+	(irt_isint(ir->t) ? A64I_FCVT_S32_F64 : A64I_FCVT_U32_F64) :
+	(irt_isint(ir->t) ? A64I_FCVT_S32_F32 : A64I_FCVT_U32_F32));
+      emit_dn(as, ai, dest, (left & 31));
     }
   } else {
     Reg dest = ra_dest(as, ir, RSET_GPR);
@@ -474,23 +550,22 @@ static A64Ins asm_fxloadins(IRIns *ir)
   case IRT_I16: return A64I_LDRHw ^ A64I_LS_S;
   case IRT_U16: return A64I_LDRHw;
   case IRT_NUM: return A64I_LDRd;
-  case IRT_FLOAT: lua_unimpl(); return /*ARMI_VLDR_S*/0;
+  case IRT_FLOAT: return A64I_LDRs;
   case IRT_P64: return A64I_LDRx;
   case IRT_INT: return A64I_LDRw;
   case IRT_TAB: lua_todo(); return A64I_LDRx; // !!!TODO dunno yet!
-  default: lua_unimpl(); return A64I_LDRx;
+  default: return A64I_LDRx;
   }
 }
 
 static A64Ins asm_fxstoreins(IRIns *ir)
 {
-  lua_unimpl();
   switch (irt_type(ir->t)) {
-  case IRT_I8: case IRT_U8: return /*ARMI_STRB*/0;
-  case IRT_I16: case IRT_U16: return /*ARMI_STRH*/0;
-  case IRT_NUM: lua_assert(!LJ_SOFTFP); return /*ARMI_VSTR_D*/0;
-  case IRT_FLOAT: if (!LJ_SOFTFP) return /*ARMI_VSTR_S*/0;
-  default: return /*ARMI_STR*/0;
+  case IRT_I8: case IRT_U8: return A64I_STRBw;
+  case IRT_I16: case IRT_U16: return A64I_STRHw;
+  case IRT_NUM: return A64I_STRd;
+  case IRT_FLOAT: return A64I_STRs;
+  default: return A64I_STRx;
   }
 }
 
@@ -518,12 +593,19 @@ static void asm_fstore(ASMState *as, IRIns *ir)
 
 static void asm_xload(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, irt_isfp(ir->t) ? RSET_FPR : RSET_GPR);
+  lua_assert(!(ir->op2 & IRXLOAD_UNALIGNED));
+  asm_fusexref(as, asm_fxloadins(ir), dest, ir->op1, RSET_GPR, 0);
 }
 
 static void asm_xstore_(ASMState *as, IRIns *ir, int32_t ofs)
 {
-    lua_unimpl();
+  if (ir->r != RID_SINK) {
+    Reg src = ra_alloc1(as, ir->op2,
+			(!LJ_SOFTFP && irt_isfp(ir->t)) ? RSET_FPR : RSET_GPR);
+    asm_fusexref(as, asm_fxstoreins(ir), src, ir->op1,
+		 rset_exclude(RSET_GPR, src), ofs);
+  }
 }
 
 #define asm_xstore(as, ir)	asm_xstore_(as, ir, 0)
@@ -559,9 +641,9 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   asm_guardcc(as, irt_isnum(ir->t) ? CC_LO : CC_NE);
   if (irt_type(ir->t) >= IRT_NUM) {
     lua_assert(irt_isinteger(ir->t) || irt_isnum(ir->t));
-    /* TODO: Not tested. Is it better to allocate register or load constant
-     * every time? TISNUM should be quite commonly used constant, so allocating
-     * a register could be a good option. */
+    /* TODO: Is it better to allocate register or load constant every time?
+     * TISNUM should be quite commonly used constant, so allocating a register
+     * could be a good option. */
     /* Reg tisnum = ra_allock(as, LJ_TISNUM << 15, gpr); */
     lua_todo();
     emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), type, tmp);

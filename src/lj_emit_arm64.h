@@ -77,6 +77,8 @@ static ofs_type check_offset(A64Ins ai, int32_t ofs)
   case A64I_STRHw: scale = 1; break;
   case A64I_LDRw: scale = 2; break;
   case A64I_STRw: scale = 2; break;
+  case A64I_LDRs: scale = 2; break;
+  case A64I_STRs: scale = 2; break;
   case A64I_LDRx: scale = 3; break;
   case A64I_STRx: scale = 3; break;
   case A64I_LDRd: scale = 3; break;
