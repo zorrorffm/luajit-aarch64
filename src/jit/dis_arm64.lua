@@ -377,9 +377,9 @@ local map_lsriind = { -- Load/store register (immediate pre/post-indexed)
   }
 }
 
-local map_lsri = {  -- Load/store register immediate
+local map_lsriro = {
   shift = 21, mask = 1,
-  [0] = {
+  [0] = {  -- Load/store register immediate
     shift = 10, mask = 3,
     [0] = { -- (unscaled immediate)
       shift = 26, mask = 1,
@@ -395,6 +395,34 @@ local map_lsri = {  -- Load/store register immediate
         }
       }
     }, map_lsriind, false, map_lsriind
+  },
+  {  -- Load/store register (register offset)
+    shift = 10, mask = 3,
+    [2] = {
+      shift = 26, mask = 1,
+      [0] = {
+        shift = 30, mask = 3,
+        [2] = {
+          shift = 22, mask = 3,
+          [0] = "strDwO", "ldrDwO"
+        },
+        [3] = {
+          shift = 22, mask = 3,
+          [0] = "strDxO", "ldrDxO"
+        }
+      },
+      {
+        shift = 30, mask = 3,
+        [2] = {
+          shift = 22, mask = 3,
+          [0] = "strDsO", "ldrDsO"
+        },
+        [3] = {
+          shift = 22, mask = 3,
+          [0] = "strDdO", "ldrDdO"
+        }
+      }
+    }
   }
 }
 
@@ -434,7 +462,7 @@ local map_lsp = { -- Load/store register pair (offset)
 
 local map_ls = { -- Loads and stores
   shift = 24, mask = 0x31,
-  [0x10] = map_lrl, [0x30] = map_lsri,
+  [0x10] = map_lrl, [0x30] = map_lsriro,
   [0x20] = {
     shift = 23, mask = 3,
     map_lsp, map_lsp, map_lsp
@@ -941,6 +969,16 @@ local function disass_ins(ctx)
       else
         x = "["..rn.."]"
       end
+    elseif p == "O" then
+      local rn, rm = map_regs.x[band(rshift(op, 5), 31)]
+      local m = band(rshift(op, 13), 1)
+      if m == 0 then
+        rm = map_regs.w[band(rshift(op, 16), 31)]
+      else
+        rm = map_regs.x[band(rshift(op, 16), 31)]
+      end
+      -- TODO: complete this case
+      x = "["..rn..", "..rm.."]"
     elseif p == "P" then
       local rn, sz = map_regs.x[band(rshift(op, 5), 31)]
       local imm7 = arshift(lshift(op, 10), 25)
