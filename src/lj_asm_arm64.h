@@ -463,7 +463,39 @@ static void asm_conv(ASMState *as, IRIns *ir)
 
 static void asm_strto(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  int destused = ra_used(ir);
+  int32_t ofs;
+  ra_evictset(as, RSET_SCRATCH);
+
+  if (destused) {
+    if (ra_hasspill(ir->s)) {
+      ofs = sps_scale(ir->s);
+      if (ra_hasreg(ir->r)) {
+        ra_free(as, ir->r);
+        ra_modified(as, ir->r);
+        emit_spload(as, ir, ir->r, ofs);
+      }
+    } else {
+      Reg r = ra_dest(as, ir, RSET_FPR);
+      emit_lso(as, A64I_LDRd, r, RID_SP, 0);
+    }
+  }
+
+  asm_guardcc(as, CC_EQ);
+  /* Test return status. 0 is failed. */
+  emit_opk(as, A64I_SUBSw, RID_ZERO, RID_RET, 0, RSET_GPR);
+
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_strscan_num];
+  IRRef args[2];
+  args[0] = ir->op1; /* GCstr *str */
+  args[1] = ASMREF_TMP1; /* TValue *n  */
+  asm_gencall(as, ci, args);
+
+  Reg tmp = ra_releasetmp(as, ASMREF_TMP1);
+  if (ra_hasspill(ir->s))
+    emit_opk(as, A64I_ADDx, tmp, RID_SP, ofs, RSET_GPR);
+  else
+    emit_dm(as, A64I_MOVx, tmp, RID_SP);
 }
 
 /* -- Memory references --------------------------------------------------- */
