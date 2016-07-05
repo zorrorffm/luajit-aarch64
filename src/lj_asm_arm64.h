@@ -175,6 +175,19 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
   if (ra_hasreg(ir->r)) {
     ra_noweak(as, ir->r);
     return A64F_M(ir->r);
+  } else if (irref_isk(ref)) {
+    if((ai & 0x1f000000) == 0x0a000000) { // logical instruction ?
+#if 0
+      /* TODO: Implement emit_isk13 */
+      uint32_t k = emit_isk13(ai, ir->i);
+      if (k != -1)
+        return k^A64I_BITOPk;
+#endif
+    } else if (!irt_is64(ir->t)) {
+      uint32_t k = emit_isk12(ai, ir->i);
+      if (k != -1)
+        return k ^ A64I_BINOPk;
+    }
   } else if (irref_isk(ref) && !irt_is64(ir->t)) {
     uint32_t k = emit_isk12(ai, ir->i);
     if (k != -1)
@@ -860,7 +873,6 @@ static void asm_neg(ASMState *as, IRIns *ir)
 
 static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
 {
-
   if (as->flagmcp == as->mcp) {  /* Try to drop cmp r, #0. */
     uint32_t cc = (as->mcp[1] >> 28);
     as->flagmcp = NULL;

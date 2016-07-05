@@ -60,6 +60,11 @@ static uint32_t emit_isk12(A64Ins ai, int32_t n)
     return -1;
 }
 
+/* Encode constant in K13 format for data processing instructions. */
+static uint32_t emit_isk13(A64Ins ai, int64_t n) {
+  lua_unimpl();
+}
+
 /* -- Emit loads/stores --------------------------------------------------- */
 
 typedef enum {
