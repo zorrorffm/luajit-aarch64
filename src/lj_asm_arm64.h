@@ -230,27 +230,26 @@ static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
 {
   IRIns *ir = IR(ref);
   Reg base;
-  ofs_type ot1;
+  ofs_type ot;
 
   if (ra_noreg(ir->r) && canfuse(as, ir)) {
-    ot1 = check_offset(ai, ofs);
+    ot = check_offset(ai, ofs);
     if (ir->o == IR_ADD) {
       int32_t ofs2;
-      ofs_type ot2;
       if (asm_isk32(as, ir->op2, &ofs2) &&
-	  (ot2 = check_offset(ai, (ofs2 = ofs + ofs2))) >= OFS_SCALED_0) {
+	  (check_offset(ai, (ofs2 = ofs + ofs2))) >= OFS_SCALED_0) {
 	ofs = ofs2;
 	ref = ir->op1;
-      } else if (ofs == 0 && ot1 == OFS_UNSCALED) {
+      } else if (ofs == 0 && ot == OFS_UNSCALED) {
 	IRRef lref = ir->op1, rref = ir->op2;
 	Reg rn, rm;
 	rn = ra_alloc1(as, lref, allow);
 	rm = ra_alloc1(as, rref, rset_exclude(allow, rn));
 	/* Transform from unsigned immediate offset to register offset. */
-	emit_dnm(as, (ai & 0xfeffffff) | 0x00206800, (rd & 31), rn, rm);
+	emit_dnm(as, (ai ^ 0x01206800), (rd & 31), rn, rm);
 	return;
       }
-    } else if (ir->o == IR_STRREF && ot1 == OFS_UNSCALED) {
+    } else if (ir->o == IR_STRREF && ot == OFS_UNSCALED) {
       /* TODO: This path is not tested, but looks more or less good. */
       lua_unimpl();
       lua_assert(ofs == 0);
@@ -274,7 +273,7 @@ static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
 	Reg rn = ra_alloc1(as, ref, allow);
 	Reg rm = ra_allock(as, ofs, rset_exclude(allow, rn));
 	/* Transform from unsigned immediate offset to register offset. */
-	emit_dnm(as, (ai & 0xfeffffff) | 0x00204800, rd, rn, rm);
+	emit_dnm(as, (ai ^ 0x01204800), rd, rn, rm);
 	return;
       }
     }
