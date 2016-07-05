@@ -16,6 +16,11 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 #define emit_getgl(as, r, field) \
   emit_lsptr(as, A64I_LDRx, (r), (void *)&J2G(as->J)->field)
 
+static void emit_d(ASMState *as, A64Ins ai, Reg rd)
+{
+  *--as->mcp = ai | A64F_D(rd);
+}
+
 static void emit_n(ASMState *as, A64Ins ai, Reg rn)
 {
   *--as->mcp = ai | A64F_N(rn);
@@ -53,6 +58,11 @@ static uint32_t emit_isk12(A64Ins ai, int32_t n)
         return (((n >> 12) & 4095) << 10) | (1 << 22);
     }
     return -1;
+}
+
+/* Encode constant in K13 format for data processing instructions. */
+static uint32_t emit_isk13(A64Ins ai, int64_t n) {
+  lua_unimpl();
 }
 
 /* -- Emit loads/stores --------------------------------------------------- */

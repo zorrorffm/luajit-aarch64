@@ -190,6 +190,19 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
   if (ra_hasreg(ir->r)) {
     ra_noweak(as, ir->r);
     return A64F_M(ir->r);
+  } else if (irref_isk(ref)) {
+    if((ai & 0x1f000000) == 0x0a000000) { // logical instruction ?
+#if 0
+      /* TODO: Implement emit_isk13 */
+      uint32_t k = emit_isk13(ai, ir->i);
+      if (k != -1)
+        return k^A64I_BITOPk;
+#endif
+    } else if (!irt_is64(ir->t)) {
+      uint32_t k = emit_isk12(ai, ir->i);
+      if (k != -1)
+        return k ^ A64I_BINOPk;
+    }
   } else if (irref_isk(ref) && !irt_is64(ir->t)) {
     uint32_t k = emit_isk12(ai, ir->i);
     if (k != -1)
@@ -941,19 +954,40 @@ static void asm_neg(ASMState *as, IRIns *ir)
 
 static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
 {
-    lua_unimpl();
+  if (as->flagmcp == as->mcp) {  /* Try to drop cmp r, #0. */
+    uint32_t cc = (as->mcp[1] >> 28);
+    as->flagmcp = NULL;
+    if (cc <= CC_NE) {
+      as->mcp++;
+      ai |= A64I_S;
+    } else if (cc == CC_GE) {
+      *++as->mcp ^= ((CC_GE^CC_PL) << 28);
+      ai |= A64I_S;
+    } else if (cc == CC_LT) {
+      *++as->mcp ^= ((CC_LT^CC_MI) << 28);
+      ai |= A64I_S;
+    }  /* else: other conds don't work with bit ops. */
+  }
+  if (ir->op2 == 0) {
+    Reg dest = ra_dest(as, ir, RSET_GPR);
+    uint32_t m = asm_fuseopm(as, ai, ir->op1, RSET_GPR);
+    emit_d(as, ai^m, dest);
+  } else {
+    /* NYI: Turn BAND !k12 into uxtb, uxth or bfc or shl+shr. */
+    asm_intop(as, ir, ai);
+  }
 }
 
-#define asm_bnot(as, ir)	asm_bitop(as, ir, /*ARMI_MVN*/0)
+#define asm_bnot(as, ir)	asm_bitop(as, ir, A64I_MVNw)
 
 static void asm_bswap(ASMState *as, IRIns *ir)
 {
     lua_unimpl();
 }
 
-#define asm_band(as, ir)	asm_bitop(as, ir, /*ARMI_AND*/0)
-#define asm_bor(as, ir)		asm_bitop(as, ir, /*ARMI_ORR*/0)
-#define asm_bxor(as, ir)	asm_bitop(as, ir, /*ARMI_EOR*/0)
+#define asm_band(as, ir)	asm_bitop(as, ir, A64I_ANDw)
+#define asm_bor(as, ir)		asm_bitop(as, ir, A64I_ORRw)
+#define asm_bxor(as, ir)	asm_bitop(as, ir, A64I_EORw)
 
 static void asm_bitshift(ASMState *as, IRIns *ir, int sh)
 {
