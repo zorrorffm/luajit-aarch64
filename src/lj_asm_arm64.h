@@ -703,38 +703,47 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
 
 static void asm_sload(ASMState *as, IRIns *ir)
 {
-  int32_t ofs = 8*((int32_t)ir->op1-2) + ((ir->op2 & IRSLOAD_FRAME) ? 4 : 0);
-  IRType t = irt_type(ir->t);
-  Reg dest = RID_NONE, type = RID_NONE, base;
+  int32_t ofs = 8*((int32_t)ir->op1-2);
+  IRType1 t = ir->t;
+  Reg dest = RID_NONE, base;
   RegSet allow = RSET_GPR;
   lua_assert(!(ir->op2 & IRSLOAD_PARENT));  /* Handled by asm_head_side(). */
-  lua_assert(irt_isguard(ir->t) || !(ir->op2 & IRSLOAD_TYPECHECK));
-  if ((ir->op2 & IRSLOAD_CONVERT) && irt_isguard(ir->t) && t == IRT_INT) {
+  lua_assert(irt_isguard(t) || !(ir->op2 & IRSLOAD_TYPECHECK));
+  lua_assert(!irt_isint(t) || (ir->op2 & (IRSLOAD_CONVERT|IRSLOAD_FRAME)));
+  if ((ir->op2 & IRSLOAD_CONVERT) && irt_isguard(t) && irt_isint(t)) {
+    /* TODO: Implemented, but not tested. */
+    lua_todo();
     dest = ra_scratch(as, RSET_FPR);
     asm_tointg(as, ir, dest);
-    t = IRT_NUM;  /* Continue with a regular number type check. */
-  } else
-  if (ra_used(ir)) {
+    t.irt = IRT_NUM;  /* Continue with a regular number type check. */
+  } else if (ra_used(ir)) {
     Reg tmp = RID_NONE;
     if ((ir->op2 & IRSLOAD_CONVERT))
-      tmp = ra_scratch(as, t == IRT_INT ? RSET_FPR : RSET_GPR);
-    lua_assert(irt_isnum(ir->t) || irt_isint(ir->t) || irt_isaddr(ir->t));
-    dest = ra_dest(as, ir, (t == IRT_NUM) ? RSET_FPR : allow);
+      tmp = ra_scratch(as, irt_isint(t) ? RSET_FPR : RSET_GPR);
+    lua_assert((irt_isnum(t)) || irt_isint(t) || irt_isaddr(t));
+    dest = ra_dest(as, ir, irt_isnum(t) ? RSET_FPR : allow);
     rset_clear(allow, dest);
     base = ra_alloc1(as, REF_BASE, allow);
-    if ((ir->op2 & IRSLOAD_CONVERT)) {
-      if (t == IRT_INT) {
-        lua_unimpl();
-        //emit_dn(as, ARMI_VMOV_R_S, dest, (tmp & 15));
-        //emit_dm(as, ARMI_VCVT_S32_F64, (tmp & 15), (tmp & 15));
-        t = IRT_NUM;  /* Check for original type. */
+    if (irt_isaddr(t)) {
+      /* TODO: Implement AND. LSL->LSR is suboptimal. */
+      emit_dn(as, A64I_LSRx|A64F_IR(17), dest, dest);
+      emit_dn(as, A64I_LSLx|A64F_IR((-17%64)&0x3f)|A64F_IS(63-17), dest, dest);
+    } else if ((ir->op2 & IRSLOAD_CONVERT)) {
+      /* TODO: Implemented, but not tested. */
+      lua_todo();
+      if (irt_isint(t)) {
+	emit_dm(as, A64I_FCVT_S32_F64, dest, (tmp & 31));
+	/* Value is already loaded for type check, move it to FPR. */
+	if ((ir->op2 & IRSLOAD_TYPECHECK))
+	  emit_dn(as, A64I_FMOV_D_R, (tmp & 31), dest);
+	else
+	  dest = tmp;
+	t.irt = IRT_NUM;  /* Check for original type. */
       } else {
-        lua_unimpl();
-        //emit_dm(as, ARMI_VCVT_F64_S32, (dest & 15), (dest & 15));
-        //emit_dn(as, ARMI_VMOV_S_R, tmp, (dest & 15));
-        t = IRT_INT;  /* Check for original type. */
+	emit_dm(as, A64I_FCVT_F64_S32, (dest & 31), tmp);
+	dest = tmp;
+	t.irt = IRT_INT;  /* Check for original type. */
       }
-      dest = tmp;
     }
     goto dotypecheck;
   }
@@ -742,36 +751,37 @@ static void asm_sload(ASMState *as, IRIns *ir)
 dotypecheck:
   rset_clear(allow, base);
   if ((ir->op2 & IRSLOAD_TYPECHECK)) {
-    if (ra_noreg(type)) {
-      if (ofs < 256 && ra_hasreg(dest) && (dest & 1) == 0 &&
-          rset_test((as->freeset & allow), dest+1)) {
-        type = dest+1;
-        ra_modified(as, type);
-      } else {
-        type = RID_TMP;
-      }
+    Reg tmp;
+    if (ra_hasreg(dest) && rset_test(RSET_GPR, dest)) {
+      tmp = dest;
+    } else {
+      tmp = ra_scratch(as, allow);
+      allow = rset_exclude(allow, tmp);
     }
-    asm_guardcc(as, t == IRT_NUM ? CC_HS : CC_NE);
-    emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), allow);
+    /* Need type check, even if the load result is unused. */
+    asm_guardcc(as, irt_isnum(t) ? CC_LO : CC_NE);
+    if (irt_type(t) >= IRT_NUM) {
+      lua_assert(irt_isinteger(t) || irt_isnum(t));
+      emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
+	      ra_allock(as, LJ_TISNUM << 15, allow), tmp);
+    } else if (irt_isnil(t)) {
+      emit_opk(as, A64I_CMNx, 0, tmp, 1, allow);
+    } else if (irt_ispri(t)) {
+      emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
+	      ra_allock(as, (irt_toitype(t) << 15) | 0x7fff, allow), tmp);
+    } else {
+      Reg type = ra_scratch(as, allow);
+      allow = rset_exclude(allow, type);
+      emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(t), allow);
+      emit_dn(as, A64I_ASRx|A64F_IR(47), type, tmp);
+    }
+    /* TODO: Do we need to check if offset is out-of-range? */
+    emit_lso(as, A64I_LDRx, tmp, base, ofs);
+    return;
   }
-
-  if (ra_hasreg(type)) {
-    emit_dn(as, A64I_ASRx|A64F_IR(47), type, dest);
-  }
-
   if (ra_hasreg(dest)) {
-    if (t == IRT_NUM) {
-      if (check_offset(A64I_LDRd, ofs) != OFS_INVALID) {
-        emit_lso(as, A64I_LDRd, dest, base, ofs);
-      } else {
-        /* !!!TODO w or x */
-        if (ra_hasreg(type)) emit_lso(as, A64I_LDRw, type, RID_TMP, 4);
-        emit_lso(as, A64I_LDRd, dest, RID_TMP, 0);
-        emit_opk(as, A64I_ADDx, RID_TMP, base, ofs, allow);
-        return;
-      }
-    } else
-      emit_lso(as, A64I_LDRx, dest, base, ofs); /* !!!!TODO w or x */
+    /* TODO: Do we need to check if offset is out-of-range? */
+    emit_lso(as, irt_isnum(t) ? A64I_LDRd : A64I_LDRx,(dest & 31), base, ofs);
   }
 }
 
