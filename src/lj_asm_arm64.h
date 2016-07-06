@@ -565,7 +565,7 @@ static A64Ins asm_fxloadins(IRIns *ir)
   case IRT_FLOAT: return A64I_LDRs;
   case IRT_P64: return A64I_LDRx;
   case IRT_INT: return A64I_LDRw;
-  case IRT_TAB: lua_todo(); return A64I_LDRx; // !!!TODO dunno yet!
+  case IRT_TAB: return A64I_LDRx;
   default: return A64I_LDRx;
   }
 }
@@ -628,15 +628,13 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   int32_t ofs = 0;
   RegSet gpr = RSET_GPR, allow = irt_isnum(ir->t) ? RSET_FPR : RSET_GPR;
   lua_assert(irt_isnum(ir->t) || irt_ispri(ir->t) || irt_isaddr(ir->t) ||
-	     (LJ_DUALNUM && irt_isint(ir->t)));
+	     irt_isint(ir->t));
   if (ra_used(ir)) {
     Reg dest = ra_dest(as, ir, allow);
     gpr = rset_exclude(gpr, dest);
     tmp = irt_isnum(ir->t) ? ra_scratch(as, gpr) : dest;
     if (irt_isaddr(ir->t)) {
       /* TODO: Implement AND. LSL->LSR is suboptimal. */
-      /* emit_opk(as, A64I_ANDx, dest, dest, LJ_GCVMASK, gpr); */
-      lua_todo();
       emit_dn(as, A64I_LSRx|A64F_IR(17), dest, tmp);
       emit_dn(as, A64I_LSLx|A64F_IR((-17%64)&0x3f)|A64F_IS(63-17), tmp, tmp);
     } else if (irt_isnum(ir->t)) {
@@ -653,25 +651,16 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   asm_guardcc(as, irt_isnum(ir->t) ? CC_LO : CC_NE);
   if (irt_type(ir->t) >= IRT_NUM) {
     lua_assert(irt_isinteger(ir->t) || irt_isnum(ir->t));
-    /* TODO: Is it better to allocate register or load constant every time?
-     * TISNUM should be quite commonly used constant, so allocating a register
-     * could be a good option. */
-    /* Reg tisnum = ra_allock(as, LJ_TISNUM << 15, gpr); */
-    lua_todo();
-    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), type, tmp);
-    emit_loadu64(as, type, LJ_TISNUM << 15);
+    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
+	    ra_allock(as, LJ_TISNUM << 15, gpr), tmp);
   } else if (irt_isaddr(ir->t)) {
-    emit_opk(as, A64I_CMNx, RID_ZERO, type, -irt_toitype(ir->t), gpr);
+    emit_opk(as, A64I_CMNx, 0, type, -irt_toitype(ir->t), gpr);
     emit_dn(as, A64I_ASRx|A64F_IR(47), type, tmp);
   } else if (irt_isnil(ir->t)) {
-    /* TODO: Not tested. */
-    lua_todo();
-    emit_opk(as, A64I_CMNx, RID_ZERO, tmp, -1, gpr);
+    emit_opk(as, A64I_CMNx, 0, tmp, 1, gpr);
   } else {
-    /* TODO: Not tested. */
-    lua_todo();
-    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), type, tmp);
-    emit_loadu64(as, type, (irt_toitype(ir->t) << 15) | 0x7fff);
+    emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
+	    ra_allock(as, (irt_toitype(ir->t) << 15) | 0x7fff, allow), tmp);
   }
   emit_lso(as, A64I_LDRx, tmp, idx, ofs);
 }
