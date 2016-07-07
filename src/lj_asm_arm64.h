@@ -508,32 +508,35 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
     idx = dest;
     rset_clear(allow, dest);
     kofs = (int32_t)offsetof(Node, key);
-    lua_unimpl();
   } else if (ra_hasreg(dest)) {
     emit_opk(as, A64I_ADDx, dest, node, ofs, allow); /*!!!TODO w or x */
   }
   asm_guardcc(as, CC_NE);
 
-  if (!irt_ispri(irkey->t)) {
-    Reg key = ra_scratch(as, rset_exclude(RSET_GPR, node));
-    emit_dnm(as, A64I_CMPx, 0, dest, key);
-    lua_assert(irt_isnum(irkey->t) || irt_isgcv(irkey->t));
-    /* !!!TODO is this valid on ARM64? */
-    /* Assumes -0.0 is already canonicalized to +0.0. */
-    emit_loadu64(as, key, irt_isnum(irkey->t) ? ir_knum(irkey)->u64 :
-                          ((uint64_t)irt_toitype(irkey->t) << 47) |
-                          (uint64_t)ir_kgc(irkey));
-    emit_lso(as, A64I_LDRx, dest, idx, kofs);
-  } else {
+  uint64_t key_val = 0;
+  if (irt_ispri(irkey->t)) {
     lua_unimpl();
     lua_assert(!irt_isnil(irkey->t));
-//    emit_i32(as, (irt_toitype(irkey->t)<<15)|0x7fff);
-//    emit_rmro(as, XO_ARITHi, XOg_CMP, node,
-//              ofs + (int32_t)offsetof(Node, key.it));
+    key_val = (uint64_t)irt_toitype(irkey->t) << 47;
+  } else if (irt_isnum(irkey->t))  {
+    /* !!!TODO is this valid on ARM64? */
+    /* Assumes -0.0 is already canonicalized to +0.0. */
+    key_val = ir_knum(irkey)->u64;
+  } else {
+    lua_assert(irt_isgcv(irkey->t));
+    key_val = ((uint64_t)irt_toitype(irkey->t) << 47) | (uint64_t)ir_kgc(irkey);
   }
 
-  if (large_ofs)
+  key = ra_scratch(as, allow);
+  /* TODO: Optimize to use less registers. */
+  Reg temp = ra_scratch(as, rset_exclude(allow, key));
+  emit_dnm(as, A64I_CMPx, 0, key, temp);
+  emit_loadu64(as, temp, key_val);
+  emit_lso(as, A64I_LDRx, key, idx, kofs);
+
+  if (large_ofs) {
     emit_opk(as, A64I_ADDx, dest, node, ofs, RSET_GPR);
+  }
 }
 
 static void asm_uref(ASMState *as, IRIns *ir)
