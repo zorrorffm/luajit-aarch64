@@ -143,6 +143,7 @@ typedef enum A64CC {
 #define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
 #define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
 #define A64F_SH(sh, n)	(((sh) << 22) | ((n) << 10))
+#define A64F_BSH(sh)    ((sh) << 10)
 
 typedef enum A64Ins {
   A64I_S = 0x20000000,
@@ -190,13 +191,20 @@ typedef enum A64Ins {
   A64I_SXTHw = 0x13003c00,
   A64I_UXTBw = 0x53001c00,
   A64I_UXTHw = 0x53003c00,
+  A64I_SBFMw = 0x13000000,
+  A64I_UBFMw = 0x53000000,
+  A64I_EXTRw = 0x13800000,
 
   A64I_ASRw = 0x13007c00,
   A64I_ASRx = 0x9340fc00,
-  A64I_LSLx = 0xd3400000,
-  A64I_LSRx = 0xd340fc00,
+  A64I_LSLx = 0xd3400000, /* lsl w0, w0, #0 */
+  A64I_LSRx = 0xd340fc00, /* lsr w0, w0, #0 */
+  A64I_SHRw = 0x1ac02000, /* lsl/lsr/asr/ror w0, w0, w0 */
+  A64I_SHRx = 0x9ac02000,
   A64I_MVNw = 0x2a2003e0,
   A64I_MVNx = 0xaa2003e0,
+  A64I_REVw = 0x5ac00800,
+  A64I_REVx = 0xdac00c00,
 
   A64I_MULw = 0x1b007c00,
   A64I_MULx = 0x9b007c00,
@@ -260,7 +268,7 @@ typedef enum A64Ins {
 } A64Ins;
 
 typedef enum A64Shift {
-  A64SH_LSL, A64SH_LSR, A64SH_ASR
+  A64SH_LSL, A64SH_LSR, A64SH_ASR, A64SH_ROR
 } ARMShift;
 
 #endif

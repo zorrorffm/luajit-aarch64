@@ -203,10 +203,6 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
       if (k != -1)
         return k ^ A64I_BINOPk;
     }
-  } else if (irref_isk(ref) && !irt_is64(ir->t)) {
-    uint32_t k = emit_isk12(ai, ir->i);
-    if (k != -1)
-      return k ^ A64I_BINOPk;
   } else if (mayfuse(as, ref)) {
 #if 0
     /* !!!TODO fuse shifts into this instruction, as ARM does */
@@ -730,7 +726,6 @@ static void asm_sload(ASMState *as, IRIns *ir)
   RegSet allow = RSET_GPR;
   lua_assert(!(ir->op2 & IRSLOAD_PARENT));  /* Handled by asm_head_side(). */
   lua_assert(irt_isguard(t) || !(ir->op2 & IRSLOAD_TYPECHECK));
-  lua_assert(!irt_isint(t) || (ir->op2 & (IRSLOAD_CONVERT|IRSLOAD_FRAME)));
   if ((ir->op2 & IRSLOAD_CONVERT) && irt_isguard(t) && irt_isint(t)) {
     /* TODO: Implemented, but not tested. */
     lua_todo();
@@ -779,6 +774,8 @@ dotypecheck:
       tmp = ra_scratch(as, allow);
       allow = rset_exclude(allow, tmp);
     }
+  if (irt_isnum(t) && !(ir->op2 & IRSLOAD_CONVERT))
+    emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
     /* Need type check, even if the load result is unused. */
     asm_guardcc(as, irt_isnum(t) ? CC_LO : CC_NE);
     if (irt_type(t) >= IRT_NUM) {
@@ -1004,7 +1001,6 @@ static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
     uint32_t m = asm_fuseopm(as, ai, ir->op1, RSET_GPR);
     emit_d(as, ai^m, dest);
   } else {
-    /* NYI: Turn BAND !k12 into uxtb, uxth or bfc or shl+shr. */
     asm_intop(as, ir, ai);
   }
 }
@@ -1013,22 +1009,62 @@ static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
 
 static void asm_bswap(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg left = ra_alloc1(as, ir->op1, RSET_GPR);
+  emit_dn(as, irt_is64(ir->t) ? A64I_REVx : A64I_REVw, dest, left);
 }
 
 #define asm_band(as, ir)	asm_bitop(as, ir, A64I_ANDw)
 #define asm_bor(as, ir)		asm_bitop(as, ir, A64I_ORRw)
 #define asm_bxor(as, ir)	asm_bitop(as, ir, A64I_EORw)
 
-static void asm_bitshift(ASMState *as, IRIns *ir, int sh)
-{
-    lua_unimpl();
-}
+static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, int sh)
+ {
+  if (irref_isk(ir->op2)) {  /* Constant shifts. */
+    Reg dest = ra_dest(as, ir, RSET_GPR);
+    Reg left = ra_alloc1(as, ir->op1, RSET_GPR);
+    int32_t shift = (IR(ir->op2)->i & (irt_is64(ir->t) ? 63 : 31));
+    lua_assert(shift>=0 && shift<(irt_is64(ir->t) ? 64 : 32));
+    uint32_t var64 = 0x804;
+    int32_t immr, imms;
 
-#define asm_bshl(as, ir)	asm_bitshift(as, ir, /*ARMSH_LSL*/0)
-#define asm_bshr(as, ir)	asm_bitshift(as, ir, /*ARMSH_LSR*/0)
-#define asm_bsar(as, ir)	asm_bitshift(as, ir, /*ARMSH_ASR*/0)
-#define asm_bror(as, ir)	asm_bitshift(as, ir, /*ARMSH_ROR*/0)
+    switch(sh) {
+    case 0: //LSL
+      imms = irt_is64(ir->t) ? 63-shift : 31-shift;
+      immr = imms+1;
+      if(!irt_is64(ir->t)) {
+        emit_dn(as, ai|(imms<<10)|(immr<<16), dest, left);
+      } else {
+        emit_dn(as, ai|var64|(imms<<10)|(immr<<16), dest, left);
+      }
+      break;
+    case 1: case 2: //LSR, ASR
+      if(!irt_is64(ir->t)) {
+        emit_dn(as, ai|(31<<10)|(shift<<16), dest, left);
+      } else {
+        emit_dn(as, ai|var64|(63<<10)|(shift<<16), dest, left);
+      }
+      break;
+    case 3: // ROR
+      if(!irt_is64(ir->t)) {
+        emit_dnm(as, ai|(shift<<10), dest, left, left);
+      } else {
+        emit_dnm(as, ai|var64|(shift<<10), dest, left, left);
+      }
+      break;
+    }
+  } else {
+    Reg dest = ra_dest(as, ir, RSET_GPR);
+    Reg left = ra_alloc1(as, ir->op1, RSET_GPR);
+    Reg right = ra_alloc1(as, ir->op2, rset_exclude(RSET_GPR, left));
+    emit_dnm(as, A64I_SHRw|A64F_BSH(sh), dest, left, right);
+  }
+ }
+
+#define asm_bshl(as, ir)       asm_bitshift(as, ir, A64I_UBFMw, A64SH_LSL)
+#define asm_bshr(as, ir)       asm_bitshift(as, ir, A64I_UBFMw, A64SH_LSR)
+#define asm_bsar(as, ir)       asm_bitshift(as, ir, A64I_SBFMw, A64SH_ASR)
+#define asm_bror(as, ir)       asm_bitshift(as, ir, A64I_EXTRw, A64SH_ROR)
 #define asm_brol(as, ir)	lua_assert(0)
 
 static void asm_intmin_max(ASMState *as, IRIns *ir, int cc)
