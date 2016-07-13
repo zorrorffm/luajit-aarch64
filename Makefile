@@ -169,9 +169,9 @@ define RUN_LUA_TEST
 $(MAKE) LUAJIT="$(LUA_EXECUTOR) $(LUAJIT)" LUA_PATH="$(shell pwd)/src/?.lua;;" -C test $@
 endef
 
-test: all
-	@echo "Running all tests :"
-	$(call RUN_LUA_TEST)
+# Find all tests inside the test folder.
+LUA_TEST_SRC=$(wildcard test/*.lua)
+ALL_LUA_TEST=$(LUA_TEST_SRC:test/%.lua=test_%)
 
-test_%: all
+$(ALL_LUA_TEST) test: all
 	$(call RUN_LUA_TEST)
