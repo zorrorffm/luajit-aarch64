@@ -2305,22 +2305,30 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     if (!as->loopref)
       asm_tail_link(as);
 
+    /* TODO Move ir_maddr allocation to lj_trace_alloc. */
+    T->szir_maddr = as->curins - as->stopins;
+    T->ir_maddr = (MCode **)lj_mem_new(J->L, sizeof(MCode *) * T->szir_maddr);
+
     /* Assemble a trace in linear backwards order. */
     for (as->curins--; as->curins > as->stopins; as->curins--) {
       IRIns *ir = IR(as->curins);
       lua_assert(!(LJ_32 && irt_isint64(ir->t)));  /* Handled by SPLIT. */
-      if (!ra_used(ir) && !ir_sideeff(ir) && (as->flags & JIT_F_OPT_DCE))
+      if (!ra_used(ir) && !ir_sideeff(ir) && (as->flags & JIT_F_OPT_DCE)) {
+        T->ir_maddr[as->curins - as->stopins] = JIT_DUMP_MCODE_EMPTY_IR;
 	continue;  /* Dead-code elimination can be soooo easy. */
+      }
       if (irt_isguard(ir->t))
 	asm_snap_prep(as);
       RA_DBG_REF();
       checkmclim(as);
       asm_ir(as, ir);
+      T->ir_maddr[as->curins - as->stopins] = as->mcp;
     }
 
-    if (as->realign && J->curfinal->nins >= T->nins)
+    if (as->realign && J->curfinal->nins >= T->nins) {
+      lj_mem_free(J2G(J), T->ir_maddr, T->szir_maddr);
       continue;  /* Retry in case only the MCode needs to be realigned. */
-
+    }
     /* Emit head of trace. */
     RA_DBG_REF();
     checkmclim(as);
@@ -2342,6 +2350,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
       memcpy(J->curfinal->ir + as->orignins, T->ir + as->orignins,
 	     (T->nins - as->orignins) * sizeof(IRIns));  /* Copy RENAMEs. */
       T->nins = J->curfinal->nins;
+      J->curfinal->ir_maddr = T->ir_maddr;
+      J->curfinal->szir_maddr = T->szir_maddr;
       break;  /* Done. */
     }
 
