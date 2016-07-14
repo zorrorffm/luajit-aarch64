@@ -126,11 +126,12 @@ static void emit_lsptr(ASMState *as, A64Ins ai, Reg r, void *p)
 {
   int64_t i = i64ptr(p);
   Reg tmp = RID_TMP; /*!!!TODO allocate register? */
-  emit_lso(as, ai, r, tmp, (i & 0xffff));
+  emit_lso(as, ai, r, tmp, 0);
+  /* emit_lso(as, ai, r, tmp, (i & 0xffff)); */
   *--as->mcp = A64I_MOVK_48x | A64F_D(tmp) | A64F_U16((i>>48) & 0xffff);
   *--as->mcp = A64I_MOVK_32x | A64F_D(tmp) | A64F_U16((i>>32) & 0xffff);
   *--as->mcp = A64I_MOVK_16x | A64F_D(tmp) | A64F_U16((i>>16) & 0xffff);
-
+  *--as->mcp = A64I_MOVZx | A64F_D(tmp) | A64F_U16(i & 0xffff);
 }
 
 /* Load a 32 bit constant into a GPR. */
@@ -245,6 +246,12 @@ static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
 }
 
 /* -- Emit control-flow instructions -------------------------------------- */
+
+/* Label for internal jumps. */
+typedef MCode *MCLabel;
+
+/* Return label pointing to current PC. */
+#define emit_label(as)		((as)->mcp)
 
 static void emit_branch(ASMState *as, A64Ins ai, MCode *target)
 {

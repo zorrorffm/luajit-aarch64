@@ -1898,7 +1898,6 @@ static void build_subroutines(BuildCtx *ctx)
   |   add CARG3, sp, #1536     // Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #504]     // Store sp in RID_SP
-  |   st_vmstate CARG4
   |  ldr CARG2w, [CARG1, #-4]!   // Get exit instruction.
   |   str CARG1, [sp, #496]      // Store exit pc in RID_LR and ...
   |//   str CARG1, [sp, #504]      // RID_SP (EXITSTATE_REG)
@@ -1911,8 +1910,10 @@ static void build_subroutines(BuildCtx *ctx)
   |  movn TMP1, #~DISPATCH_GL(cur_L)
   |  ldr L, [TMP0, TMP1]
   |   add CARG1, CARG2, CARG1, lsr #2   // Compute exit number.
+  |    ldr GL, L->glref			// Setup pointer to global state.
   |  movn TMP1, #~DISPATCH_GL(jit_base)
   |    ldr BASE, [TMP0, TMP1]
+  |   st_vmstate CARG4
   |  movn TMP1, #~DISPATCH_J(exitno)
   |   str CARG1w, [TMP0, TMP1]
   |   mov CARG4, #0
@@ -1934,7 +1935,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   ldr PC, SAVE_PC                   // Get SAVE_PC.
   |  str L, SAVE_L                      // Set SAVE_L (on-trace resume/yield).
   |  b >1
-  |  
+  |
   |->vm_exit_interp:
   |  // arm: CARG1 = MULTRES or negated error code, BASE, PC and DISPATCH set.
   |  // arm64: BASE, PC, L, GL need to be set. They are when coming from

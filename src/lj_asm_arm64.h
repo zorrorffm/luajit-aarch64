@@ -131,15 +131,24 @@ static int asm_isk32(ASMState *as, IRRef ref, int32_t *k)
 /* Check if there's no conflicting instruction between curins and ref. */
 static int noconflict(ASMState *as, IRRef ref, IROp conflict)
 {
-    lua_unimpl();
-    return 0;
+  IRIns *ir = as->ir;
+  IRRef i = as->curins;
+  if (i > ref + CONFLICT_SEARCH_LIM)
+    return 0;  /* Give up, ref is too far away. */
+  while (--i > ref)
+    if (ir[i].o == conflict)
+      return 0;  /* Conflict found. */
+  return 1;  /* Ok, no conflict. */
 }
 
 /* Fuse the array base of colocated arrays. */
 static int32_t asm_fuseabase(ASMState *as, IRRef ref)
 {
-    lua_unimpl();
-    return 0;
+  IRIns *ir = IR(ref);
+  if (ir->o == IR_TNEW && ir->op1 <= LJ_MAX_COLOSIZE &&
+      !neverfuse(as) && noconflict(as, ref, IR_NEWREF))
+    return (int32_t)sizeof(GCtab);
+  return 0;
 }
 
 /* Fuse array/hash/upvalue reference into register+offset operand. */
@@ -504,7 +513,22 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
 
 static void asm_aref(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg idx, base;
+  if (irref_isk(ir->op2)) {
+    IRRef tab = IR(ir->op1)->op1;
+    int32_t ofs = asm_fuseabase(as, tab);
+    IRRef refa = ofs ? tab : ir->op1;
+    uint32_t k = emit_isk12(A64I_ADDx, ofs + 8*IR(ir->op2)->i);
+    if (k != -1) {
+      base = ra_alloc1(as, refa, RSET_GPR);
+      emit_dn(as, A64I_ADDx^A64I_BINOPk^k, dest, base);
+      return;
+    }
+  }
+  base = ra_alloc1(as, ir->op1, RSET_GPR);
+  idx = ra_alloc1(as, ir->op2, rset_exclude(RSET_GPR, base));
+  emit_dnm(as, A64I_ADDx|A64F_SH(A64SH_LSL, 3), dest, base, idx);
 }
 
 /* Inlined hash lookup. Specialized for key type and for const keys.
@@ -763,6 +787,8 @@ static void asm_sload(ASMState *as, IRIns *ir)
 	dest = tmp;
 	t.irt = IRT_INT;  /* Check for original type. */
       }
+    } else if (irt_isint(t)) {
+      emit_dn(as, A64I_SXTW, dest, dest);
     }
     goto dotypecheck;
   }
@@ -777,8 +803,8 @@ dotypecheck:
       tmp = ra_scratch(as, allow);
       allow = rset_exclude(allow, tmp);
     }
-  if (irt_isnum(t) && !(ir->op2 & IRSLOAD_CONVERT))
-    emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
+    if (irt_isnum(t) && !(ir->op2 & IRSLOAD_CONVERT))
+      emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
     /* Need type check, even if the load result is unused. */
     asm_guardcc(as, irt_isnum(t) ? CC_LO : CC_NE);
     if (irt_type(t) >= IRT_NUM) {
@@ -802,7 +828,7 @@ dotypecheck:
   }
   if (ra_hasreg(dest)) {
     /* TODO: Do we need to check if offset is out-of-range? */
-    emit_lso(as, irt_isnum(t) ? A64I_LDRd : A64I_LDRx,(dest & 31), base, ofs);
+    emit_lso(as, irt_isnum(t) ? A64I_LDRd : A64I_LDRx, (dest & 31), base, ofs);
   }
 }
 
@@ -1289,7 +1315,32 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
 /* Check GC threshold and do one or more GC steps. */
 static void asm_gc_check(ASMState *as)
 {
-    lua_unimpl();
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_gc_step_jit];
+  IRRef args[2];
+  MCLabel l_end;
+  Reg tmp1, tmp2;
+  ra_evictset(as, RSET_SCRATCH);
+  l_end = emit_label(as);
+  /* Exit trace if in GCSatomic or GCSfinalize. Avoids syncing GC objects. */
+  asm_guardcc(as, CC_NE);  /* Assumes asm_snap_prep() already done. */
+  emit_dn(as, A64I_CMPx^A64I_BINOPk, RID_ZERO, RID_RET);
+  args[0] = ASMREF_TMP1;  /* global_State *g */
+  args[1] = ASMREF_TMP2;  /* MSize steps     */
+  asm_gencall(as, ci, args);
+  tmp1 = ra_releasetmp(as, ASMREF_TMP1);
+  tmp2 = ra_releasetmp(as, ASMREF_TMP2);
+  emit_loadi(as, tmp2, as->gcsteps);
+  /* Jump around GC step if GC total < GC threshold. */
+  emit_cond_branch(as, CC_LS, l_end);
+  emit_nm(as, A64I_CMPx, RID_TMP, tmp2);
+  emit_lso(as, A64I_LDRx, tmp2, tmp1,
+	   (int32_t)offsetof(global_State, gc.threshold));
+  emit_lso(as, A64I_LDRx, RID_TMP, tmp1,
+	   (int32_t)offsetof(global_State, gc.total));
+  /* TODO: Should we allocate register for this? */
+  emit_loadu64(as, tmp1, u64ptr(J2G(as->J)));
+  as->gcsteps = 0;
+  checkmclim(as);
 }
 
 /* -- Loop handling ------------------------------------------------------- */
