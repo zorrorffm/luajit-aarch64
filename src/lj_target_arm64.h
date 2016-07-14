@@ -186,6 +186,8 @@ typedef enum A64Ins {
   A64I_SUBw = 0x4b000000,
   A64I_SUBSx = A64I_SUBx | A64I_S,
   A64I_SUBSw = A64I_SUBw | A64I_S,
+  A64I_CSELw = 0x1a800000,
+  A64I_CSELx = 0x9a800000,
 
   A64I_SXTBw = 0x13001c00,
   A64I_SXTHw = 0x13003c00,
@@ -224,6 +226,7 @@ typedef enum A64Ins {
   A64I_LDRs = 0xbd400000, /* ldr s0,[x0] */
   A64I_FCMPd = 0x1e602000,
   A64I_FCMPZd = 0x1e602008,
+  A64I_FCSELd = 0x1e600c00,
 
   A64I_FCVT_F32_F64 = 0x1e624000,
   A64I_FCVT_F64_F32 = 0x1e22c000,
@@ -269,6 +272,6 @@ typedef enum A64Ins {
 
 typedef enum A64Shift {
   A64SH_LSL, A64SH_LSR, A64SH_ASR, A64SH_ROR
-} ARMShift;
+} A64Shift;
 
 #endif

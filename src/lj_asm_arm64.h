@@ -974,12 +974,10 @@ static void asm_mul(ASMState *as, IRIns *ir)
 
 static void asm_neg(ASMState *as, IRIns *ir)
 {
-#if !LJ_SOFTFP
   if (irt_isnum(ir->t)) {
     asm_fpunary(as, ir, A64I_FNEGd);
     return;
   }
-#endif
   asm_intneg(as, ir, A64I_NEGx);
 }
 
@@ -1021,7 +1019,7 @@ static void asm_bswap(ASMState *as, IRIns *ir)
 #define asm_bor(as, ir)		asm_bitop(as, ir, A64I_ORRw)
 #define asm_bxor(as, ir)	asm_bitop(as, ir, A64I_EORw)
 
-static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, int sh)
+static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, A64Shift sh)
  {
   if (irref_isk(ir->op2)) {  /* Constant shifts. */
     Reg dest = ra_dest(as, ir, RSET_GPR);
@@ -1032,7 +1030,7 @@ static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, int sh)
     int32_t immr, imms;
 
     switch(sh) {
-    case 0: //LSL
+    case A64SH_LSL:
       imms = irt_is64(ir->t) ? 63-shift : 31-shift;
       immr = imms+1;
       if(!irt_is64(ir->t)) {
@@ -1041,14 +1039,14 @@ static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, int sh)
         emit_dn(as, ai|var64|(imms<<10)|(immr<<16), dest, left);
       }
       break;
-    case 1: case 2: //LSR, ASR
+    case A64SH_LSR: case A64SH_ASR:
       if(!irt_is64(ir->t)) {
         emit_dn(as, ai|(31<<10)|(shift<<16), dest, left);
       } else {
         emit_dn(as, ai|var64|(63<<10)|(shift<<16), dest, left);
       }
       break;
-    case 3: // ROR
+    case A64SH_ROR:
       if(!irt_is64(ir->t)) {
         emit_dnm(as, ai|(shift<<10), dest, left, left);
       } else {
@@ -1068,27 +1066,40 @@ static void asm_bitshift(ASMState *as, IRIns *ir, A64Ins ai, int sh)
 #define asm_bshr(as, ir)       asm_bitshift(as, ir, A64I_UBFMw, A64SH_LSR)
 #define asm_bsar(as, ir)       asm_bitshift(as, ir, A64I_SBFMw, A64SH_ASR)
 #define asm_bror(as, ir)       asm_bitshift(as, ir, A64I_EXTRw, A64SH_ROR)
-#define asm_brol(as, ir)	lua_assert(0)
+#define asm_brol(as, ir)       lua_assert(0)
 
-static void asm_intmin_max(ASMState *as, IRIns *ir, int cc)
+static void asm_intmin_max(ASMState *as, IRIns *ir, A64CC cc)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  Reg left = ra_hintalloc(as, ir->op1, dest, RSET_GPR);
+  Reg right = ra_alloc1(as, ir->op2, rset_exclude(RSET_GPR, left));
+
+  // !!!TODO: optimize - check if op2 is immediate
+
+  emit_dnm(as, A64I_CSELx|A64F_COND(cc), dest, left, right);
+  emit_nm(as, A64I_CMPw, left, right);
 }
 
-static void asm_fpmin_max(ASMState *as, IRIns *ir, int cc)
+static void asm_fpmin_max(ASMState *as, IRIns *ir, A64CC fcc)
 {
-    lua_unimpl();
+  Reg dest = (ra_dest(as, ir, RSET_FPR) & 31);
+  Reg right, left = ra_alloc2(as, ir, RSET_FPR);
+  right = ((left >> 8) & 31); left &= 31;
+
+  emit_dnm(as, A64I_FCSELd|A64F_COND(fcc), dest, left, right);
+  emit_nm(as, A64I_FCMPd, left, right);
 }
 
-static void asm_min_max(ASMState *as, IRIns *ir, int cc, int fcc)
+static void asm_min_max(ASMState *as, IRIns *ir, A64CC cc, A64CC fcc)
 {
-    lua_unimpl();
+  if (irt_isnum(ir->t))
+    asm_fpmin_max(as, ir, fcc);
+  else
+    asm_intmin_max(as, ir, cc);
 }
 
-//#define asm_min(as, ir)		asm_min_max(as, ir, CC_GT, CC_HI)
-//#define asm_max(as, ir)		asm_min_max(as, ir, CC_LT, CC_LO)
-#define asm_min(as, ir)		lua_unimpl()
-#define asm_max(as, ir)		lua_unimpl()
+#define asm_max(as, ir)		asm_min_max(as, ir, CC_GT, CC_HI)
+#define asm_min(as, ir)		asm_min_max(as, ir, CC_LT, CC_LO)
 
 /* -- Comparisons --------------------------------------------------------- */
 
