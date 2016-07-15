@@ -175,7 +175,7 @@ void LJ_FASTCALL lj_trace_free(global_State *g, GCtrace *T)
     setgcrefnull(J->trace[T->traceno]);
   }
   if (T->ir_maddr) {
-     lj_mem_free(g, T->ir_maddr, T->szir_maddr);
+    lj_mem_free(g, T->ir_maddr, sizeof(MCode *) * T->szir_maddr);
   }
   lj_mem_free(g, T,
     ((sizeof(GCtrace)+7)&~7) + (T->nins-T->nk)*sizeof(IRIns) +

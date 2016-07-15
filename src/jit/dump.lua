@@ -549,11 +549,18 @@ local function dump_ir(tr, dumpsnap, dumpreg)
         -- TODO use macro defined in native code:
         --   JIT_DUMP_MCODE_EMPTY_IR 0
         --   JIT_DUMP_MCODE_END 1
+        ofs = addr_ir_start - addr
         if addr_ir_start ~= 0 then
           if addr_ir_end ~= 1 then
-            ctx:disass(addr_ir_start - addr, (addr_ir_end - addr_ir_start))
+            ctx:disass(ofs, addr_ir_end - addr_ir_start)
           else
-            ctx:disass(addr_ir_start - addr, addr + #mcode - addr_ir_start)
+            if ofs > 0 then
+              ctx:disass(ofs, addr + #mcode - addr_ir_start)
+            else
+              -- TODO When ofs is not positive, there may be "fix up" in luajit IR assembler.
+              -- This is not handled in interleaved IR dump part.
+              out:write(format("Warning: ofs (%s) not positive.\n", ofs))
+            end
           end
         end
       end

@@ -2326,7 +2326,7 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     }
 
     if (as->realign && J->curfinal->nins >= T->nins) {
-      lj_mem_free(J2G(J), T->ir_maddr, T->szir_maddr);
+      lj_mem_free(J2G(J), T->ir_maddr, sizeof(MCode *) * T->szir_maddr);
       continue;  /* Retry in case only the MCode needs to be realigned. */
     }
     /* Emit head of trace. */
