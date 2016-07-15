@@ -787,7 +787,7 @@ static void asm_sload(ASMState *as, IRIns *ir)
 	dest = tmp;
 	t.irt = IRT_INT;  /* Check for original type. */
       }
-    } else if (irt_isint(t)) {
+    } else if (irt_isint(t) && (ir->op2 & IRSLOAD_TYPECHECK)) {
       emit_dn(as, A64I_SXTW, dest, dest);
     }
     goto dotypecheck;
@@ -828,7 +828,8 @@ dotypecheck:
   }
   if (ra_hasreg(dest)) {
     /* TODO: Do we need to check if offset is out-of-range? */
-    emit_lso(as, irt_isnum(t) ? A64I_LDRd : A64I_LDRx, (dest & 31), base, ofs);
+    emit_lso(as, irt_isnum(t) ? A64I_LDRd :
+	     (irt_isint(t) ? A64I_LDRw : A64I_LDRx), (dest & 31), base, ofs);
   }
 }
 
