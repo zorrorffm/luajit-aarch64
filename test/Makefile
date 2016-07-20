@@ -9,7 +9,7 @@ SKIPPED_LUA_TEST_i686=mul div
 # Below features have not been implemented on aarch64.
 SKIPPED_LUA_TEST_aarch64=div callxs \
   ustore uload snew cnew cnewi \
-  abs atan2 ldexp max min mod pow \
+  abs atan2 ldexp max min mod pow eq_other \
   fpm_ceil fpm_exp fpm_floor fpm_log fpm_log10 fpm_sin fpm_sqrt fpm_tan fpm_trunc
 
 # Find all tests inside the folder.
