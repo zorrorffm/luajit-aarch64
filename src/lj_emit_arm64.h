@@ -190,7 +190,7 @@ static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
   lua_assert(!irt_isnum(ir->t)); UNUSED(ir);
 #else
   if (dst >= RID_MAX_GPR) {
-    emit_dm(as, irt_isnum(ir->t) ? A64I_FMOV_D : A64I_FMOV_S,
+    emit_dn(as, irt_isnum(ir->t) ? A64I_FMOV_D : A64I_FMOV_S,
      (dst & 31), (src & 31));
     return;
   }

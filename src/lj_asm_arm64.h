@@ -391,14 +391,12 @@ static void asm_retf(ASMState *as, IRIns *ir)
 
 static void asm_tointg(ASMState *as, IRIns *ir, Reg left)
 {
-  /* TODO: This hasn't been tested yet. */
-  lua_unimpl();
   Reg tmp = ra_scratch(as, rset_exclude(RSET_FPR, left));
   Reg dest = ra_dest(as, ir, RSET_GPR);
   asm_guardcc(as, CC_NE);
-  emit_dm(as, A64I_FCMPd, (tmp & 31), (left & 31));
-  emit_dm(as, A64I_FCVT_F64_S32, (tmp & 31), dest);
-  emit_dm(as, A64I_FCVT_S32_F64, dest, (left & 31));
+  emit_nm(as, A64I_FCMPd, (tmp & 31), (left & 31));
+  emit_dn(as, A64I_FCVT_F64_S32, (tmp & 31), dest);
+  emit_dn(as, A64I_FCVT_S32_F64, dest, (left & 31));
 }
 
 static void asm_tobit(ASMState *as, IRIns *ir)
@@ -872,14 +870,20 @@ static void asm_fpunary(ASMState *as, IRIns *ir, A64Ins ai)
   emit_dn(as, ai, (dest & 31), (left & 31));
 }
 
-static void asm_callround(ASMState *as, IRIns *ir, int id)
-{
-    lua_unimpl();
-}
-
 static void asm_fpmath(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  IRFPMathOp fpm = (IRFPMathOp)ir->op2;
+  if (fpm == IRFPM_SQRT) {
+    asm_fpunary(as, ir, A64I_FSQRTd);
+  } else if (fpm <= IRFPM_TRUNC) {
+    asm_fpunary(as, ir, fpm == IRFPM_FLOOR ? A64I_FRINTMd :
+                        fpm == IRFPM_CEIL ? A64I_FRINTPd :
+                                           A64I_FRINTZd);
+  } else if (fpm == IRFPM_EXP2 && asm_fpjoin_pow(as, ir)) {
+    return;
+  } else {
+    asm_callid(as, ir, IRCALL_lj_vm_floor + fpm);
+  }
 }
 
 static int asm_swapops(ASMState *as, IRRef lref, IRRef rref)
