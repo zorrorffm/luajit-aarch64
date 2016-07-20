@@ -8,9 +8,7 @@ SKIPPED_LUA_TEST_x86_64=mul div
 SKIPPED_LUA_TEST_i686=mul div
 # Below features have not been implemented on aarch64.
 SKIPPED_LUA_TEST_aarch64=div callxs \
-  hstore_pri hstore_str astore_pri astore_num astore_str ustore \
-  aload_bool aload_num aload_str uload \
-  snew xsnew tnew cnew cnewi tdup
+  ustore uload snew cnew cnewi
 
 # Find all tests inside the folder.
 LUA_TEST_SRC=$(wildcard *.lua)
