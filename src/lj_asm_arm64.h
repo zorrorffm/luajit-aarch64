@@ -720,10 +720,9 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
 
 static void asm_ahustore(ASMState *as, IRIns *ir)
 {
-  lua_todo(); /* !!!TODO x86 has loads of GC64 changes here */
   if (ir->r != RID_SINK) {
     RegSet allow = RSET_GPR;
-    Reg idx, src = RID_NONE, type = RID_NONE;
+    Reg idx, src = RID_NONE, tmp = RID_NONE;
     int32_t ofs = 0;
     if (irt_isnum(ir->t)) {
       src = ra_alloc1(as, ir->op2, RSET_FPR);
@@ -734,11 +733,32 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
 	src = ra_alloc1(as, ir->op2, allow);
 	rset_clear(allow, src);
       }
-      type = ra_allock(as, (int32_t)irt_toitype(ir->t)<<15, allow);
-      idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, type), A64I_STRw);
-      if (ra_hasreg(src))
-	emit_lso(as, A64I_STRw, src, idx, ofs); /* !!!TODO STRx? */
-      emit_lso(as, A64I_STRw, type, idx, ofs+4); /* !!!TODO STRx? */
+      tmp = ra_scratch(as, allow);
+      idx = asm_fuseahuref(as, ir->op1, &ofs, rset_exclude(allow, tmp),
+			   A64I_STRx);
+      emit_lso(as, A64I_STRx, tmp, idx, ofs);
+      if (ra_hasreg(src)) {
+	if (irt_isinteger(ir->t)) {
+	  /* Merge TISNUM with zero-extended integer. */
+	  emit_dnm(as, A64I_ADDx|A64F_EX(A64EX_UXTW), tmp, tmp, src);
+	  emit_d(as, A64I_MOVZx|(((LJ_TISNUM>>1)&0xffff)<<5)|
+	         A64F_LSL16(48), tmp);
+	} else {
+	  emit_dnm(as, A64I_ADDx|A64F_SH(A64SH_LSL, 47), tmp, src, tmp);
+	  emit_d(as, A64I_MOVNx|(((~irt_toitype(ir->t))&0xffff)<<5), tmp);
+	}
+      } else {
+	/* TODO: We should probably allocate a register for these.
+	 * But how should we allocate a register for a 64-bit constant? */
+	IRType t = irt_type(ir->t);
+	if (t == IRT_TRUE) {
+	  emit_d(as, A64I_MOVNx|(0x0001<<5)|A64F_LSL16(48), tmp);
+	} else if (t == IRT_FALSE) {
+	  emit_d(as, A64I_MOVNx|(0x8000<<5)|A64F_LSL16(32), tmp);
+	} else {
+	  emit_d(as, A64I_MOVNx, tmp);
+	}
+      }
     }
   }
 }
@@ -785,7 +805,7 @@ static void asm_sload(ASMState *as, IRIns *ir)
 	dest = tmp;
 	t.irt = IRT_INT;  /* Check for original type. */
       }
-    } else if (irt_isint(t)) {
+    } else if (irt_isint(t) && (ir->op2 & IRSLOAD_TYPECHECK)) {
       emit_dn(as, A64I_SXTW, dest, dest);
     }
     goto dotypecheck;
@@ -826,7 +846,8 @@ dotypecheck:
   }
   if (ra_hasreg(dest)) {
     /* TODO: Do we need to check if offset is out-of-range? */
-    emit_lso(as, irt_isnum(t) ? A64I_LDRd : A64I_LDRx, (dest & 31), base, ofs);
+    emit_lso(as, irt_isnum(t) ? A64I_LDRd :
+	     (irt_isint(t) ? A64I_LDRw : A64I_LDRx), (dest & 31), base, ofs);
   }
 }
 

@@ -142,17 +142,22 @@ typedef enum A64CC {
 #define A64F_S19(x)	((x) << 5)
 #define A64F_COND(cc)   ((cc) << 12)  /* for CCMP */
 #define A64F_NZCV(nzcv) ((nzcv) << 0) /* for CCMP */
+#define A64F_EX(ex)	(A64I_EX | ((ex) << 13))
 #define A64F_SH(sh, n)	(((sh) << 22) | ((n) << 10))
+#define A64F_LSL16(n)	(((n) / 16) << 21)
 #define A64F_BSH(sh)    ((sh) << 10)
 
 typedef enum A64Ins {
   A64I_S = 0x20000000,
+  A64I_EX = 0x00200000,
   A64I_MOVK_16w = 0x72a00000,
   A64I_MOVK_16x = 0xf2a00000,
   A64I_MOVK_32x = 0xf2c00000,
   A64I_MOVK_48x = 0xf2e00000,
   A64I_MOVZw = 0x52800000,
   A64I_MOVZx = 0xd2800000,
+  A64I_MOVNw = 0x12800000,
+  A64I_MOVNx = 0x92800000,
   A64I_MOVw = 0x2a0003e0,
   A64I_MOVx = 0xaa0003e0,
   A64I_LDRBw = 0x39400000,
@@ -278,5 +283,10 @@ typedef enum A64Ins {
 typedef enum A64Shift {
   A64SH_LSL, A64SH_LSR, A64SH_ASR, A64SH_ROR
 } A64Shift;
+
+typedef enum A64Extend {
+  A64EX_UXTB, A64EX_UXTH, A64EX_UXTW, A64EX_UXTX,
+  A64EX_SXTB, A64EX_SXTH, A64EX_SXTW, A64EX_SXTX,
+} A64Extend;
 
 #endif

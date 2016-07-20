@@ -1799,6 +1799,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.if JIT
   |  ldr LFUNC:CARG3, [BASE, FRAME_FUNC]  // Same as curr_topL(L).
   |   add CARG1, GL, #GG_G2DISP+GG_DISP2J
+  |  and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |   str PC, SAVE_PC
   |  ldr CARG3, LFUNC:CARG3->field_pc
   |   mov CARG2, PC
@@ -1924,7 +1925,6 @@ static void build_subroutines(BuildCtx *ctx)
   |   str CARG4, [TMP0, TMP1]
   |  sub CARG1, TMP0, #-GG_DISP2J
   |  mov CARG2, sp
-  |  ldr GL, L->glref
   |  bl extern lj_trace_exit            // (jit_State *J, ExitState *ex)
   |  // Returns MULTRES (unscaled) or negated error code.
   |  ldr CARG2, L->cframe
@@ -1948,6 +1948,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  blt >9				// Check for error from exit.
   |   lsl RC, CARG1, #3
   |  ldr LFUNC:CARG2, [BASE, FRAME_FUNC]
+  |    movz TISNUM, #(LJ_TISNUM>>1)&0xffff, lsl #48
+  |    movz TISNUMhi, #(LJ_TISNUM>>1)&0xffff, lsl #16
+  |    movn TISNIL, #0
   |   str RC, SAVE_MULTRES
   |   mov CARG3, #0
   |   str BASE, L->base
