@@ -1911,7 +1911,6 @@ static void build_subroutines(BuildCtx *ctx)
   |  movn TMP1, #~DISPATCH_GL(cur_L)
   |  ldr L, [TMP0, TMP1]
   |   add CARG1, CARG2, CARG1, lsr #2   // Compute exit number.
-  |    ldr GL, L->glref			// Setup pointer to global state.
   |  movn TMP1, #~DISPATCH_GL(jit_base)
   |    ldr BASE, [TMP0, TMP1]
   |   st_vmstate CARG4

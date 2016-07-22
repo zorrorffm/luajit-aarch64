@@ -637,17 +637,23 @@ static A64Ins asm_fxstoreins(IRIns *ir)
 static void asm_fload(ASMState *as, IRIns *ir)
 {
   Reg dest = ra_dest(as, ir, RSET_GPR);
-  Reg idx = ra_alloc1(as, ir->op1, RSET_GPR);
+  Reg idx;
   A64Ins ai = asm_fxloadins(ir);
   int32_t ofs;
-  if (ir->op2 == IRFL_TAB_ARRAY) {
-    ofs = asm_fuseabase(as, ir->op1);
-    if (ofs) {  /* Turn the t->array load into an add for colocated arrays. */
-      emit_dn(as, (A64I_ADDx^A64I_BINOPk)|ofs, dest, idx);
-      return;
+  if (ir->op1 == REF_NIL) {
+    idx = RID_GL;
+    ofs = ir->op2 - GG_OFS(g);
+  } else {
+    idx = ra_alloc1(as, ir->op1, RSET_GPR);
+    if (ir->op2 == IRFL_TAB_ARRAY) {
+      ofs = asm_fuseabase(as, ir->op1);
+      if (ofs) {  /* Turn the t->array load into an add for colocated arrays. */
+        emit_dn(as, (A64I_ADDx^A64I_BINOPk)|ofs, dest, idx);
+        return;
+      }
     }
+    ofs = field_ofs[ir->op2];
   }
-  ofs = field_ofs[ir->op2];
   emit_lso(as, ai, dest, idx, ofs);
 }
 
