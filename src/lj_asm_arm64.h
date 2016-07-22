@@ -602,7 +602,35 @@ static void asm_fref(ASMState *as, IRIns *ir)
 
 static void asm_strref(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  Reg dest = ra_dest(as, ir, RSET_GPR);
+  IRRef ref = ir->op2, refk = ir->op1;
+  Reg r;
+  if (irref_isk(ref)) {
+    IRRef tmp = refk; refk = ref; ref = tmp;
+  } else if (!irref_isk(refk)) {
+    lua_todo(); /* Not tested yet */
+    uint32_t k, m = sizeof(GCstr);
+    Reg right, left = ra_alloc1(as, ir->op1, RSET_GPR);
+    IRIns *irr = IR(ir->op2);
+    if (ra_hasreg(irr->r)) {
+      ra_noweak(as, irr->r);
+      right = irr->r;
+    } else if (mayfuse(as, irr->op2) &&
+               irr->o == IR_ADD && irref_isk(irr->op2) &&
+               (k = emit_isk12(A64I_ADDx,
+                               (int32_t)sizeof(GCstr) + IR(irr->op2)->i))) {
+      m = k;
+      right = ra_alloc1(as, irr->op1, rset_exclude(RSET_GPR, left));
+    } else {
+      right = ra_allocref(as, ir->op2, rset_exclude(RSET_GPR, left));
+    }
+    emit_dn(as, A64I_ADDx^A64I_BINOPk^m, dest, dest);
+    emit_dnm(as, A64I_ADDx, dest, left, right);
+    return;
+  }
+  r = ra_alloc1(as, ref, RSET_GPR);
+  emit_opk(as, A64I_ADDx, dest, r,
+           sizeof(GCstr) + IR(refk)->i, rset_exclude(RSET_GPR, r));
 }
 
 /* -- Loads and stores ---------------------------------------------------- */
