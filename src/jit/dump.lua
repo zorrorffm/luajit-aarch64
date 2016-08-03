@@ -438,6 +438,30 @@ local function dump_ir_write(s)
   out:write(format("\t@ %s", s))
 end
 
+-- Dump machine code for one single IR.
+local function dump_single_ir(tr, ins, addr, ctx, mcode)
+  local addr_ir_start, addr_ir_end = traceirmc(tr, ins)
+  if addr_ir_start < 0 then addr_ir_start = addr_ir_start + 2^32 end
+  if addr_ir_end < 0 then addr_ir_end = addr_ir_end + 2^32 end
+  -- TODO use macro defined in native code:
+  --   JIT_DUMP_MCODE_EMPTY_IR 0
+  --   JIT_DUMP_MCODE_END 1
+  ofs = addr_ir_start - addr
+  if addr_ir_start ~= 0 then
+    if addr_ir_end ~= 1 then
+      ctx:disass(ofs, addr_ir_end - addr_ir_start)
+    else
+      if ofs > 0 then
+        ctx:disass(ofs, addr + #mcode - addr_ir_start)
+      else
+        -- TODO When ofs is not positive, there may be "fix up" in luajit IR assembler.
+        -- This is not handled in interleaved IR dump part.
+        out:write(format("Warning: ofs (%s) not positive.\n", ofs))
+      end
+    end
+  end
+end
+
 -- Dump IR and interleaved snapshots.
 local function dump_ir(tr, dumpsnap, dumpreg)
   local info = traceinfo(tr)
@@ -488,9 +512,9 @@ local function dump_ir(tr, dumpsnap, dumpreg)
     local op = sub(irnames, oidx+1, oidx+6)
     if op == "LOOP  " then
       if dumpreg then
-	out:write(format("%04d ------------ LOOP ------------\n", ins))
+	out:write(format("%04d ------------ LOOP ------------", ins))
       else
-	out:write(format("%04d ------ LOOP ------------\n", ins))
+	out:write(format("%04d ------ LOOP ------------", ins))
       end
     elseif op ~= "NOP   " and op ~= "CARG  " and
 	   (dumpreg or op ~= "RENAME") then
@@ -540,32 +564,13 @@ local function dump_ir(tr, dumpsnap, dumpreg)
 	    out:write(format("  %04d", op2))
 	  end
 	end
-      end
-      out:write("\n")
-      if dumpmode.M then
-        local addr_ir_start, addr_ir_end = traceirmc(tr, ins)
-        if addr_ir_start < 0 then addr_ir_start = addr_ir_start + 2^32 end
-        if addr_ir_end < 0 then addr_ir_end = addr_ir_end + 2^32 end
-        -- TODO use macro defined in native code:
-        --   JIT_DUMP_MCODE_EMPTY_IR 0
-        --   JIT_DUMP_MCODE_END 1
-        ofs = addr_ir_start - addr
-        if addr_ir_start ~= 0 then
-          if addr_ir_end ~= 1 then
-            ctx:disass(ofs, addr_ir_end - addr_ir_start)
-          else
-            if ofs > 0 then
-              ctx:disass(ofs, addr + #mcode - addr_ir_start)
-            else
-              -- TODO When ofs is not positive, there may be "fix up" in luajit IR assembler.
-              -- This is not handled in interleaved IR dump part.
-              out:write(format("Warning: ofs (%s) not positive.\n", ofs))
-            end
-          end
-        end
-      end
+      end -- end if sub() == "CALL" ... ... elseif ...
+    end -- end if op == "LOOP" ... elseif ...
+    out:write("\n")
+    if dumpmode.M then
+      dump_single_ir(tr, ins, addr, ctx, mcode)
     end
-  end
+  end -- end for loop.
   if snap then
     if dumpreg then
       out:write(format("....              SNAP   #%-3d [ ", snapno))
