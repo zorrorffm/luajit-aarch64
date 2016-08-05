@@ -438,26 +438,39 @@ local function dump_ir_write(s)
   out:write(format("\t@ %s", s))
 end
 
+local function validate_addr(mcode, ofs, length)
+  if ofs <= 0 then
+    -- TODO When ofs is not positive, there may be "fix up" in luajit IR assembler.
+    -- This is not handled in interleaved IR dump part.
+    out:write(format("Warning: ofs (%s) is not positive.\n", ofs))
+    return false
+  elseif ofs + length > #mcode then
+    out:write("Warning: out of mcode range.\n")
+    return false
+  else
+    return true
+  end
+end
+
 -- Dump machine code for one single IR.
 local function dump_single_ir(tr, ins, addr, ctx, mcode)
   local addr_ir_start, addr_ir_end = traceirmc(tr, ins)
   if addr_ir_start < 0 then addr_ir_start = addr_ir_start + 2^32 end
   if addr_ir_end < 0 then addr_ir_end = addr_ir_end + 2^32 end
+
+  local length
+  local ofs = addr_ir_start - addr
   -- TODO use macro defined in native code:
   --   JIT_DUMP_MCODE_EMPTY_IR 0
   --   JIT_DUMP_MCODE_END 1
-  ofs = addr_ir_start - addr
   if addr_ir_start ~= 0 then
     if addr_ir_end ~= 1 then
-      ctx:disass(ofs, addr_ir_end - addr_ir_start)
+      length = addr_ir_end - addr_ir_start
     else
-      if ofs > 0 then
-        ctx:disass(ofs, addr + #mcode - addr_ir_start)
-      else
-        -- TODO When ofs is not positive, there may be "fix up" in luajit IR assembler.
-        -- This is not handled in interleaved IR dump part.
-        out:write(format("Warning: ofs (%s) not positive.\n", ofs))
-      end
+      length = addr + #mcode - addr_ir_start
+    end
+    if validate_addr(mcode, ofs, length) then
+      ctx:disass(ofs, length)
     end
   end
 end
