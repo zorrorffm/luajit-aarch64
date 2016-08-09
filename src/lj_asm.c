@@ -2308,6 +2308,9 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     /* TODO Move ir_maddr allocation to lj_trace_alloc. */
     T->szir_maddr = as->curins - as->stopins;
     T->ir_maddr = (MCode **)lj_mem_new(J->L, sizeof(MCode *) * T->szir_maddr);
+    for (int i = 0; i < T->szir_maddr; i++) {
+      T->ir_maddr[i] = JIT_DUMP_MCODE_EMPTY_IR;
+    }
 
     /* Assemble a trace in linear backwards order. */
     for (as->curins--; as->curins > as->stopins; as->curins--) {
