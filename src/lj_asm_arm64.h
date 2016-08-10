@@ -1420,7 +1420,38 @@ static void asm_prof(ASMState *as, IRIns *ir)
 static void asm_stack_check(ASMState *as, BCReg topslot,
 			    IRIns *irp, RegSet allow, ExitNo exitno)
 {
-    lua_unimpl();
+  Reg pbase;
+  uint32_t k;
+  if (irp) {
+    if (!ra_hasspill(irp->s)) {
+      pbase = irp->r;
+      lua_assert(ra_hasreg(pbase));
+    } else if (allow) {
+      pbase = rset_pickbot(allow);
+    } else {
+      pbase = RID_RET;
+      emit_lso(as, A64I_LDRx, RID_RET, RID_SP, 0);  /* Restore temp. register. */
+    }
+  } else {
+    pbase = RID_BASE;
+  }
+  emit_branch(as, A64I_BL, exitstub_addr(as->J, exitno));
+  emit_cond_branch(as, CC_LS^1, as->mcp+1);
+  k = emit_isk12(0, (int32_t)(8*topslot));
+  lua_assert(k != -1);
+  emit_n(as, A64I_CMPx^A64I_BINOPk^k, RID_TMP);
+  emit_dnm(as, A64I_SUBx, RID_TMP, RID_TMP, pbase);
+  emit_lso(as, A64I_LDRx, RID_TMP, RID_TMP,
+	   (int32_t)offsetof(lua_State, maxstack));
+  if (irp) {  /* Must not spill arbitrary registers in head of side trace. */
+    if (ra_hasspill(irp->s))
+      emit_lso(as, A64I_LDRx, pbase, RID_SP, sps_scale(irp->s));
+    emit_lso(as, A64I_LDRx, RID_TMP, RID_GL, glofs(as, &J2G(as->J)->cur_L));
+    if (ra_hasspill(irp->s) && !allow)
+      emit_lso(as, A64I_STRx, RID_RET, RID_SP, 0);  /* Save temp. register. */
+  } else {
+    emit_getgl(as, RID_TMP, cur_L);
+  }
 }
 
 /* Restore Lua stack from on-trace state. */
