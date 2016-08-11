@@ -13,7 +13,8 @@ SKIPPED_LUA_TEST_aarch64=div call_vararg \
   abs atan2 ldexp max min mod pow \
   eq_other ge_none_num gt_none_num \
   fpm_ceil fpm_exp fpm_floor fpm_log fpm_log10 fpm_sin fpm_sqrt fpm_tan fpm_trunc \
-  fpm_exp2 fpm_log2 fref href newref urefc urefo
+  fpm_exp2 fpm_log2 fref href newref urefc urefo \
+  bnot bsar bshl bshr bswap
 
 # Find all tests inside the folder.
 LUA_TEST_SRC=$(wildcard *.lua)
