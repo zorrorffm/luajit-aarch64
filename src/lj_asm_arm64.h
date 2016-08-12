@@ -904,8 +904,6 @@ static void asm_sload(ASMState *as, IRIns *ir)
   lua_assert(!(ir->op2 & IRSLOAD_PARENT));  /* Handled by asm_head_side(). */
   lua_assert(irt_isguard(t) || !(ir->op2 & IRSLOAD_TYPECHECK));
   if ((ir->op2 & IRSLOAD_CONVERT) && irt_isguard(t) && irt_isint(t)) {
-    /* TODO: Implemented, but not tested. */
-    lua_todo();
     dest = ra_scratch(as, RSET_FPR);
     asm_tointg(as, ir, dest);
     t.irt = IRT_NUM;  /* Continue with a regular number type check. */
@@ -922,18 +920,17 @@ static void asm_sload(ASMState *as, IRIns *ir)
       emit_dn(as, A64I_LSRx|A64F_IR(17), dest, dest);
       emit_dn(as, A64I_LSLx|A64F_IR((-17%64)&0x3f)|A64F_IS(63-17), dest, dest);
     } else if ((ir->op2 & IRSLOAD_CONVERT)) {
-      /* TODO: Implemented, but not tested. */
-      lua_todo();
       if (irt_isint(t)) {
-	emit_dm(as, A64I_FCVT_S32_F64, dest, (tmp & 31));
-	/* Value is already loaded for type check, move it to FPR. */
+	lua_todo();
+	emit_dn(as, A64I_FCVT_S32_F64, dest, (tmp & 31));
+	/* If value is already loaded for type check, move it to FPR. */
 	if ((ir->op2 & IRSLOAD_TYPECHECK))
 	  emit_dn(as, A64I_FMOV_D_R, (tmp & 31), dest);
 	else
 	  dest = tmp;
 	t.irt = IRT_NUM;  /* Check for original type. */
       } else {
-	emit_dm(as, A64I_FCVT_F64_S32, (dest & 31), tmp);
+	emit_dn(as, A64I_FCVT_F64_S32, (dest & 31), tmp);
 	dest = tmp;
 	t.irt = IRT_INT;  /* Check for original type. */
       }
