@@ -18,6 +18,8 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
 
 #define emit_getgl(as, r, field) \
   emit_lsptr(as, A64I_LDRx, (r), (void *)&J2G(as->J)->field)
+#define emit_setgl(as, r, field) \
+  emit_lsptr(as, A64I_STRx, (r), (void *)&J2G(as->J)->field)
 
 static void emit_d(ASMState *as, A64Ins ai, Reg rd)
 {
@@ -296,7 +298,6 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
 
 #define emit_setvmstate(as, i)                UNUSED(i)
 #define emit_spsub(as, ofs)                   emit_addptr(as, RID_SP, -(ofs))
-#define emit_setgl(as, r, field)              lua_unimpl()
 
 static void emit_call(ASMState *as, void *target)
 {
