@@ -1962,6 +1962,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   ldr INSw, [PC], #4
   |    st_vmstate CARG4
   |  cmp RBw, #BC_FUNCC+2		// Fast function?
+  |   add TMP1, GL, INS, uxtb #3
   |  bhs >4
   |2:
   |  cmp RBw, #BC_FUNCF			// Function header?
