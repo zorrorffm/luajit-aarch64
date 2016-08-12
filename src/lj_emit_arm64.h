@@ -49,6 +49,11 @@ static void emit_dnm(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm)
   *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm);
 }
 
+static void emit_dnma(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm, Reg ra)
+{
+  *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm) | A64F_A(ra);
+}
+
 /* Encode constant in K12 format for data processing instructions. */
 static uint32_t emit_isk12(A64Ins ai, int32_t n)
 {
