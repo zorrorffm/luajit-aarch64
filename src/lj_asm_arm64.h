@@ -391,6 +391,7 @@ static void asm_callx(ASMState *as, IRIns *ir)
   } else {
     /* Use LR for indirect calls. */
     emit_n(as, A64I_BLR, RID_LR);
+    emit_loadu64(as, RID_LR, func);
     ci.func = (ASMFunction)(void *)0;
   }
   asm_gencall(as, &ci, args);
