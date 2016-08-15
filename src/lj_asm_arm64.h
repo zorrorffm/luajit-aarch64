@@ -529,7 +529,7 @@ static void asm_strto(ASMState *as, IRIns *ir)
   if (ra_hasspill(ir->s))
     emit_opk(as, A64I_ADDx, tmp, RID_SP, ofs, RSET_GPR);
   else
-    emit_dm(as, A64I_MOVx, tmp, RID_SP);
+    emit_dn(as, A64I_ADDx^A64I_BINOPk, tmp, RID_SP);
 }
 
 /* -- Memory references --------------------------------------------------- */
