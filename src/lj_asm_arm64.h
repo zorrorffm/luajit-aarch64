@@ -773,7 +773,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
     if (ir->op2 == IRFL_TAB_ARRAY) {
       ofs = asm_fuseabase(as, ir->op1);
       if (ofs) {  /* Turn the t->array load into an add for colocated arrays. */
-        emit_dn(as, (A64I_ADDx^A64I_BINOPk)|ofs, dest, idx);
+        emit_dn(as, (A64I_ADDx^A64I_BINOPk)|(ofs << 10), dest, idx);
         return;
       }
     }
