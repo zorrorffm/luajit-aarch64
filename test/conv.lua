@@ -93,3 +93,13 @@ do
   end
   assert(y == 501)
 end
+
+do
+  -- IR_CONV i64.int
+  local x = ffi.new("uint8_t", 20)
+  local y
+  for i=1,100 do
+    y = ffi.cast("int32_t",x) + 1
+  end
+  assert(y == 21)
+end
