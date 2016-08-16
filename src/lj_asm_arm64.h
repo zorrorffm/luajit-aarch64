@@ -367,7 +367,15 @@ static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
   if (ra_used(ir)) {
     lua_assert(!irt_ispri(ir->t));
     if (irt_isfp(ir->t)) {
-      ra_destreg(as, ir, RID_FPRET);
+      if (ci->flags & CCI_CASTU64) {
+        Reg dest = ra_dest(as, ir, RSET_FPR) & 31;
+        if (irt_isnum(ir->t))
+          emit_dn(as, A64I_FMOV_D_R, dest, RID_RET);
+        else
+          emit_dn(as, A64I_FMOV_S_R, dest, RID_RET);
+      } else {
+        ra_destreg(as, ir, RID_FPRET);
+      }
     } else {
       ra_destreg(as, ir, RID_RET);
     }
