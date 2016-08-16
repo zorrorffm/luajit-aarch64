@@ -307,12 +307,13 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
 static void emit_call(ASMState *as, void *target)
 {
   static const int32_t imm_bits = 26;
-  MCode *p = --as->mcp;
-  ptrdiff_t delta = (char *)target - (char *)p;
-  delta >>= 2;
-  if ((delta + (1 << (imm_bits -1))) >= 0) {
-    *p = A64I_BL | (delta & ((1 << imm_bits) - 1));
-  } else {  /* Target out of range. */
-    lua_unimpl();
+  ptrdiff_t delta = (char *)target - (char *)(as->mcp - 1);
+  lua_assert(delta & 3 == 0);
+  if ((((delta >> 2) + (1 << (imm_bits - 1))) >> imm_bits) == 0) {
+    *--as->mcp = A64I_BL | ((delta >> 2) & ((1 << imm_bits) - 1));
+  } else {
+    /* Use LR for indirect calls. */
+    emit_n(as, A64I_BLR, RID_LR);
+    emit_loadu64(as, RID_LR, target);
   }
 }
