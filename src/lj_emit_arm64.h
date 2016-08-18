@@ -308,7 +308,7 @@ static void emit_call(ASMState *as, void *target)
 {
   static const int32_t imm_bits = 26;
   ptrdiff_t delta = (char *)target - (char *)(as->mcp - 1);
-  lua_assert(delta & 3 == 0);
+  lua_assert((delta & 3) == 0);
   if ((((delta >> 2) + (1 << (imm_bits - 1))) >> imm_bits) == 0) {
     *--as->mcp = A64I_BL | ((delta >> 2) & ((1 << imm_bits) - 1));
   } else {
