@@ -890,7 +890,49 @@ dotypecheck:
 #if LJ_HASFFI
 static void asm_cnew(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  CTState *cts = ctype_ctsG(J2G(as->J));
+  CTypeID id = (CTypeID)IR(ir->op1)->i;
+  CTSize sz;
+  CTInfo info = lj_ctype_info(cts, id, &sz);
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_mem_newgco];
+  IRRef args[4];
+  RegSet allow = (RSET_GPR & ~RSET_SCRATCH);
+  lua_assert(sz != CTSIZE_INVALID || (ir->o == IR_CNEW && ir->op2 != REF_NIL));
+
+  as->gcsteps++;
+       asm_setupresult(as, ir, ci);  /* GCcdata * */
+
+  /* Initialize immutable cdata object. */
+  if (ir->o == IR_CNEWI) {
+    int32_t ofs = sizeof(GCcdata);
+    lua_assert(sz == 4 || sz == 8);
+    Reg r = ra_alloc1(as, ir->op2, allow);
+    emit_lso(as, A64I_STRx, r, RID_RET, ofs);
+  } else if (ir->op2 != REF_NIL) {  /* Create VLA/VLS/aligned cdata. */
+    ci = &lj_ir_callinfo[IRCALL_lj_cdata_newv];
+    args[0] = ASMREF_L;     /* lua_State *L */
+    args[1] = ir->op1;      /* CTypeID id   */
+    args[2] = ir->op2;      /* CTSize sz    */
+    args[3] = ASMREF_TMP1;  /* CTSize align */
+    asm_gencall(as, ci, args);
+    emit_loadi(as, ra_releasetmp(as, ASMREF_TMP1), (int32_t)ctype_align(info));
+    return;
+  }
+
+  /* Initialize gct and ctypeid. lj_mem_newgco() already sets marked. */
+ {
+   int k = (id & 0xffff) ? 0 : 1;
+   Reg r = k ? RID_X1 : ra_allock(as, id, allow);
+   emit_lso(as, A64I_STRBw, RID_TMP, RID_RET, offsetof(GCcdata, gct));
+   emit_lso(as, A64I_STRHw, r, RID_RET, offsetof(GCcdata, ctypeid));
+   emit_d(as, A64I_MOVKw|A64F_U16(~LJ_TCDATA), RID_TMP);
+   if (k) emit_d(as, A64I_MOVKw|A64F_U16(id), RID_X1);
+ }
+  args[0] = ASMREF_L;     /* lua_State *L */
+  args[1] = ASMREF_TMP1;  /* MSize size   */
+  asm_gencall(as, ci, args);
+  ra_allockreg(as, (int32_t)(sz+sizeof(GCcdata)),
+              ra_releasetmp(as, ASMREF_TMP1));
 }
 #else
 #define asm_cnew(as, ir)	((void)0)
@@ -900,7 +942,37 @@ static void asm_cnew(ASMState *as, IRIns *ir)
 
 static void asm_tbar(ASMState *as, IRIns *ir)
 {
-    lua_todo();
+  Reg tab, link, logr, gr, mark = RID_TMP;
+  uint32_t allow = RSET_GPR;
+  MCLabel l_end;
+  //uint32_t logimm = emit_isk13(0, LJ_GC_BLACK);
+
+  /* Allocate the registers */
+  tab = ra_alloc1(as, ir->op1, allow);
+  allow = rset_exclude(allow, tab);
+  link = ra_scratch(as, allow);
+  allow = rset_exclude(allow, link);
+  gr = ra_allock(as, i64ptr(J2G(as->J)), allow);
+  allow = rset_exclude(allow, gr);
+  logr = ra_scratch(as, allow);
+
+  l_end = emit_label(as);
+
+  emit_lso(as, A64I_STRw, link, tab, (int32_t)offsetof(GCtab, gclist));
+  emit_lso(as, A64I_STRBw, mark, tab, (int32_t)offsetof(GCtab, marked));
+  emit_lso(as, A64I_STRw, tab, gr,
+     (int32_t)offsetof(global_State, gc.grayagain));
+  emit_dnm(as, A64I_BICw, mark, mark, logr);
+  emit_lso(as, A64I_LDRw, link, gr,
+     (int32_t)offsetof(global_State, gc.grayagain));
+  emit_cond_branch(as, CC_EQ, l_end);
+  //if (logimm != (uint32_t)-1)
+  //  emit_n(as, A64I_TSTIw|A64F_IS(logimm), mark);
+  //else {
+    emit_nm(as, A64I_TSTw, mark, logr);
+    emit_d(as, A64I_MOVKw|A64F_U16(LJ_GC_BLACK), logr);
+  //}
+  emit_lso(as, A64I_LDRBw, mark, tab, (int32_t)offsetof(GCtab, marked));
 }
 
 static void asm_obar(ASMState *as, IRIns *ir)

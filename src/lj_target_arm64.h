@@ -150,7 +150,10 @@ typedef enum A64CC {
 
 typedef enum A64Ins {
   A64I_S = 0x20000000,
+  A64I_X = 0x80000000,
   A64I_EX = 0x00200000,
+  A64I_MOVKw = 0x72800000,
+  A64I_MOVKx = A64I_X|A64I_MOVKw,
   A64I_MOVK_16w = 0x72a00000,
   A64I_MOVK_16x = 0xf2a00000,
   A64I_MOVK_32x = 0xf2c00000,
@@ -178,10 +181,20 @@ typedef enum A64Ins {
   A64I_BR = 0xd61f0000,
   A64I_ANDw = 0x0a000000,
   A64I_ANDx = 0x8a000000,
+  A64I_ANDIw = 0x12000000,
+  A64I_ANDIx = A64I_X|A64I_ANDIw,
+  A64I_ANDSw = 0x6a000000,
+  A64I_ANDSx = A64I_X|A64I_ANDSw,
+  A64I_ANDSIw= 0x72000000,
+  A64I_ANDSIx= A64I_X|A64I_ANDSIw,
   A64I_ORRw = 0x2a000000, /* orr w0,w0,w0 */
   A64I_ORRx = 0xaa000000, /* orr x0,x0,x0 */
   A64I_EORw = 0x4a000000,
   A64I_EORx = 0xca000000,
+  A64I_BICw = 0x0a200000,
+  A64I_BICx = A64I_X|A64I_BICw,
+  A64I_BICSw = 0x6a200000,
+  A64I_BICSx = A64I_X|A64I_BICSw,
   A64I_CCMPw = 0x7a400000, /* ccmp w0,w0,#0,eq */
   A64I_CCMPx = 0xfa400000, /* ccmp x0,x0,#0,eq */
   A64I_STRBw = 0x39000000, /* strb w0,[x0] */
@@ -273,6 +286,10 @@ typedef enum A64Ins {
   A64I_CMNw = A64I_ADDSw | A64F_D (RID_ZERO),
   A64I_NEGw = A64I_SUBw | A64F_N (RID_ZERO),
   A64I_NEGx = A64I_SUBx | A64F_N (RID_ZERO),
+  A64I_TSTIw = A64I_ANDSIw | A64F_D (0x1f), /* tst wn, #imm*/
+  A64I_TSTIx = A64I_ANDSIx | A64F_D (0x1f), /* tst xn, #imm*/
+  A64I_TSTw  = A64I_ANDSw | A64F_D (0x1f),  /* tst wn, wm {,#shift}*/
+  A64I_TSTx  = A64I_ANDSx | A64F_D (0x1f),  /* tst xn, xm {,#shift}*/
 
   /* fields */
   A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
