@@ -250,36 +250,30 @@ static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
 {
   IRIns *ir = IR(ref);
   Reg base;
-  ofs_type ot;
-
   if (ra_noreg(ir->r) && canfuse(as, ir)) {
-    ot = check_offset(ai, ofs);
     if (ir->o == IR_ADD) {
       int32_t ofs2;
       if (asm_isk32(as, ir->op2, &ofs2) &&
-	  (check_offset(ai, (ofs2 = ofs + ofs2))) >= OFS_SCALED_0) {
+	  check_offset(ai, (ofs2 = ofs + ofs2))) {
 	ofs = ofs2;
 	ref = ir->op1;
-      } else if (ofs == 0 && ot == OFS_UNSCALED) {
-	IRRef lref = ir->op1, rref = ir->op2;
-	Reg rn, rm;
-	rn = ra_alloc1(as, lref, allow);
-	rm = ra_alloc1(as, rref, rset_exclude(allow, rn));
-	/* Transform from unsigned immediate offset to register offset. */
-	emit_dnm(as, (ai ^ 0x01206800), (rd & 31), rn, rm);
-	return;
       }
-    } else if (ir->o == IR_STRREF && ot == OFS_UNSCALED) {
-      /* TODO: This path is not tested, but looks more or less good. */
-      lua_unimpl();
+    } else if (ir->o == IR_STRREF) {
       lua_assert(ofs == 0);
+      int32_t ofs2;
       ofs = (int32_t)sizeof(GCstr);
-      /* TODO: This should probably be tested with asm_isk32. */
-      if (irref_isk(ir->op2)) {
-	ofs += IR(ir->op2)->i;
+      /*
+       * TODO: This piece of code is an issue, because ofs+ofs2 could go into
+       * overflow. And that should be handled gracefully, by allocating a
+       * register for a 64-bit constant. That means that these offsets should
+       * be of int64_t type as well. This also raises many other questions
+       * like should emit_lso receive int64_t as offset as well, etc.
+       */
+      if (asm_isk32(as, ir->op2, &ofs2)) {
+	ofs += ofs2;
 	ref = ir->op1;
-      } else if (irref_isk(ir->op1)) {
-	ofs += IR(ir->op1)->i;
+      } else if (asm_isk32(as, ir->op1, &ofs2)) {
+	ofs += ofs2;
 	ref = ir->op2;
       } else {
 	/* NYI: Fuse ADD with constant. */
@@ -289,7 +283,7 @@ static void asm_fusexref(ASMState *as, A64Ins ai, Reg rd, IRRef ref,
 	emit_dn(as, A64I_ADDx^m, rd, rn);
 	return;
       }
-      if (check_offset(ai, ofs) == OFS_INVALID) {
+      if (!check_offset(ai, ofs)) {
 	Reg rn = ra_alloc1(as, ref, allow);
 	Reg rm = ra_allock(as, ofs, rset_exclude(allow, rn));
 	/* Transform from unsigned immediate offset to register offset. */
