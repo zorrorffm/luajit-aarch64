@@ -10,8 +10,7 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
   lua_unimpl();
 }
 
-/* !!!TODO non-ARM ports are different */
-#define emit_canremat(ref)      ((ref) < ASMREF_L)
+#define emit_canremat(ref)      ((ref) <= ASMREF_L)
 
 #define glofs(as, k) \
   ((intptr_t)((uintptr_t)(k) - (uintptr_t)&J2GG(as->J)->g))
@@ -186,7 +185,7 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
     emit_lso(as, irt_isnum(ir->t) ? A64I_LDRd : A64I_LDRs, r, base, ofs);
   else
 #endif
-    emit_lso(as, A64I_LDRx, r, base, ofs);
+    emit_lso(as, irt_is64(ir->t) ? A64I_LDRx : A64I_LDRw, r, base, ofs);
 }
 
 /* Generic store of register with base and (small) offset address. */
@@ -195,7 +194,7 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
   if (r >= RID_MAX_GPR) {
     emit_lso(as, irt_isnum(ir->t) ? A64I_STRd : A64I_STRs, r, base, ofs);
   } else {
-    emit_lso(as, A64I_STRx, r, base, ofs);
+    emit_lso(as, irt_is64(ir->t) ? A64I_STRx : A64I_STRw, r, base, ofs);
   }
 }
 

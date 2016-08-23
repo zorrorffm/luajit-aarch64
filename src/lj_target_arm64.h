@@ -79,22 +79,17 @@ enum {
 /* Spill slots are 32 bit wide. An even/odd pair is used for FPRs.
 **
 ** SPS_FIXED: Available fixed spill slots in interpreter frame.
-** This definition must match with the *.dasc file(s).
+** This definition must match with the vm_arm64.dasc file.
+** Set SPS_FIXED to 0. Because there is no fixed spill slots defined in
+** vm_arm64.dasc frame layout.
 **
 ** SPS_FIRST: First spill slot for general use. Reserve min. two 32 bit slots.
+**
+** SPS_FIRST is set to none zero even when SPS_FIXED is 0. Because ra_hasspill()
+** check against 0 to determine whether there is spill.
 */
-/* !!!TODO from x86 for the LJ_64 stuff */
-#if LJ_64
-#if LJ_GC64
-#define SPS_FIXED       2
-#else
-#define SPS_FIXED       4
-#endif
+#define SPS_FIXED       0
 #define SPS_FIRST       2
-#else
-#define SPS_FIXED       6
-#define SPS_FIRST       2
-#endif
 
 #define SPOFS_TMP       0
 
