@@ -7,5 +7,5 @@ end
 
 t = 5050
 
-assert(x == y, "Got " .. x .. ", expect " .. y)
+assert(x == t, "Got " .. x .. ", expect " .. t)
 
