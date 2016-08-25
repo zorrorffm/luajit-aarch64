@@ -465,7 +465,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
   if (irt_isfp(ir->t)) {
     Reg dest = ra_dest(as, ir, RSET_FPR);
     if (stfp) {  /* FP to FP conversion. */
-      emit_dm(as, st == IRT_NUM ? A64I_FCVT_F32_F64 : A64I_FCVT_F64_F32,
+      emit_dn(as, st == IRT_NUM ? A64I_FCVT_F32_F64 : A64I_FCVT_F64_F32,
 	      (dest & 31), (ra_alloc1(as, lref, RSET_FPR) & 31));
     } else {  /* Integer to FP conversion. */
       Reg left = ra_alloc1(as, lref, RSET_GPR);
@@ -503,7 +503,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
       A64Ins ai = st == IRT_I8 ? A64I_SXTBw :
 		  st == IRT_U8 ? A64I_UXTBw :
 		  st == IRT_I16 ? A64I_SXTHw : A64I_UXTHw;
-      emit_dm(as, ai, dest, left);
+      emit_dn(as, ai, dest, left);
     } else {  /* Handle 32/32 bit no-op (cast). */
       ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
     }
