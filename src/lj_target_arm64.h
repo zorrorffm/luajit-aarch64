@@ -79,22 +79,17 @@ enum {
 /* Spill slots are 32 bit wide. An even/odd pair is used for FPRs.
 **
 ** SPS_FIXED: Available fixed spill slots in interpreter frame.
-** This definition must match with the *.dasc file(s).
+** This definition must match with the vm_arm64.dasc file.
+** Set SPS_FIXED to 0. Because there is no fixed spill slots defined in
+** vm_arm64.dasc frame layout.
 **
 ** SPS_FIRST: First spill slot for general use. Reserve min. two 32 bit slots.
+**
+** SPS_FIRST is set to none zero even when SPS_FIXED is 0. Because ra_hasspill()
+** check against 0 to determine whether there is spill.
 */
-/* !!!TODO from x86 for the LJ_64 stuff */
-#if LJ_64
-#if LJ_GC64
-#define SPS_FIXED       2
-#else
-#define SPS_FIXED       4
-#endif
+#define SPS_FIXED       0
 #define SPS_FIRST       2
-#else
-#define SPS_FIXED       6
-#define SPS_FIRST       2
-#endif
 
 #define SPOFS_TMP       0
 
@@ -173,12 +168,13 @@ typedef enum A64Ins {
   A64I_NOP = 0xd503201f,
   A64I_ADDw = 0x0b000000,
   A64I_ADDx = 0x8b000000,
-  A64I_ADDSw = 0x0b000000 | A64I_S,
-  A64I_ADDSx = 0x8b000000 | A64I_S,
+  A64I_ADDSw = A64I_ADDw | A64I_S,
+  A64I_ADDSx = A64I_ADDx | A64I_S,
   A64I_B = 0x14000000,
   A64I_Bcond = 0x54000000,
   A64I_BL = 0x94000000,
   A64I_BR = 0xd61f0000,
+  A64I_BLR = 0xd63f0000,
   A64I_ANDw = 0x0a000000,
   A64I_ANDx = 0x8a000000,
   A64I_ANDIw = 0x12000000,
@@ -214,8 +210,11 @@ typedef enum A64Ins {
   A64I_UXTBw = 0x53001c00,
   A64I_UXTHw = 0x53003c00,
   A64I_SBFMw = 0x13000000,
+  A64I_SBFMx = 0x93400000,
   A64I_UBFMw = 0x53000000,
+  A64I_UBFMx = 0xd3400000,
   A64I_EXTRw = 0x13800000,
+  A64I_EXTRx = 0x93c00000,
 
   A64I_ASRw = 0x13007c00,
   A64I_ASRx = 0x9340fc00,
@@ -236,6 +235,9 @@ typedef enum A64Ins {
   A64I_FADDd = 0x1e602800,
   A64I_FSUBd = 0x1e603800,
   A64I_FMADDd = 0x1f400000,
+  A64I_FMSUBd = 0x1f408000,
+  A64I_FNMADDd = 0x1f600000,
+  A64I_FNMSUBd = 0x1f608000,
   A64I_FMULd = 0x1e600800,
   A64I_FDIVd = 0x1e601800,
   A64I_FNEGd = 0x1e614000,
@@ -262,14 +264,14 @@ typedef enum A64Ins {
   A64I_FCVT_F64_S64 = 0x9e620000,
   A64I_FCVT_F32_U64 = 0x9e230000,
   A64I_FCVT_F64_U64 = 0x9e630000,
-  A64I_FCVT_S32_F64 = 0x1e640000,
-  A64I_FCVT_S32_F32 = 0x1e240000,
-  A64I_FCVT_U32_F64 = 0x1e650000,
-  A64I_FCVT_U32_F32 = 0x1e250000,
-  A64I_FCVT_S64_F64 = 0x9e640000,
-  A64I_FCVT_S64_F32 = 0x9e240000,
-  A64I_FCVT_U64_F64 = 0x9e650000,
-  A64I_FCVT_U64_F32 = 0x9e250000,
+  A64I_FCVT_S32_F64 = 0x1e780000,
+  A64I_FCVT_S32_F32 = 0x1e380000,
+  A64I_FCVT_U32_F64 = 0x1e790000,
+  A64I_FCVT_U32_F32 = 0x1e390000,
+  A64I_FCVT_S64_F64 = 0x9e780000,
+  A64I_FCVT_S64_F32 = 0x9e380000,
+  A64I_FCVT_U64_F64 = 0x9e790000,
+  A64I_FCVT_U64_F32 = 0x9e390000,
 
   A64I_FMOV_S = 0x1e204000,
   A64I_FMOV_D = 0x1e604000,

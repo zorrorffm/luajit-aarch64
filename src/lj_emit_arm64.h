@@ -10,11 +10,15 @@ static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
   lua_unimpl();
 }
 
-/* !!!TODO non-ARM ports are different */
-#define emit_canremat(ref)      ((ref) < ASMREF_L)
+#define emit_canremat(ref)      ((ref) <= ASMREF_L)
+
+#define glofs(as, k) \
+  ((intptr_t)((uintptr_t)(k) - (uintptr_t)&J2GG(as->J)->g))
 
 #define emit_getgl(as, r, field) \
   emit_lsptr(as, A64I_LDRx, (r), (void *)&J2G(as->J)->field)
+#define emit_setgl(as, r, field) \
+  emit_lsptr(as, A64I_STRx, (r), (void *)&J2G(as->J)->field)
 
 static void emit_d(ASMState *as, A64Ins ai, Reg rd)
 {
@@ -44,6 +48,11 @@ static void emit_nm(ASMState *as, A64Ins ai, Reg rn, Reg rm)
 static void emit_dnm(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm)
 {
   *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm);
+}
+
+static void emit_dnma(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm, Reg ra)
+{
+  *--as->mcp = ai | A64F_D(rd) | A64F_N(rn) | A64F_M(rm) | A64F_A(ra);
 }
 
 /* Encode constant in K12 format for data processing instructions. */
@@ -232,14 +241,18 @@ static void emit_lso(ASMState *as, A64Ins ai, Reg rd, Reg rn, int32_t ofs)
 
 static void emit_lsptr(ASMState *as, A64Ins ai, Reg r, void *p)
 {
-  int64_t i = i64ptr(p);
-  Reg tmp = RID_TMP; /*!!!TODO allocate register? */
-  emit_lso(as, ai, r, tmp, 0);
-  /* emit_lso(as, ai, r, tmp, (i & 0xffff)); */
-  *--as->mcp = A64I_MOVK_48x | A64F_D(tmp) | A64F_U16((i>>48) & 0xffff);
-  *--as->mcp = A64I_MOVK_32x | A64F_D(tmp) | A64F_U16((i>>32) & 0xffff);
-  *--as->mcp = A64I_MOVK_16x | A64F_D(tmp) | A64F_U16((i>>16) & 0xffff);
-  *--as->mcp = A64I_MOVZx | A64F_D(tmp) | A64F_U16(i & 0xffff);
+  int64_t ofs = glofs(as, p);
+  if (checki32(ofs) && check_offset(ai, ofs)) {
+    emit_lso(as, ai, r, RID_GL, ofs);
+  } else {
+    int64_t i = i64ptr(p);
+    Reg tmp = RID_TMP; /*!!!TODO allocate register? */
+    emit_lso(as, ai, r, tmp, 0);
+    *--as->mcp = A64I_MOVK_48x | A64F_D(tmp) | A64F_U16((i>>48) & 0xffff);
+    *--as->mcp = A64I_MOVK_32x | A64F_D(tmp) | A64F_U16((i>>32) & 0xffff);
+    *--as->mcp = A64I_MOVK_16x | A64F_D(tmp) | A64F_U16((i>>16) & 0xffff);
+    *--as->mcp = A64I_MOVZx | A64F_D(tmp) | A64F_U16(i & 0xffff);
+  }
 }
 
 /* Load a 32 bit constant into a GPR. */
@@ -268,6 +281,8 @@ static void emit_loadu64(ASMState *as, Reg rd, uint64_t u64)
   *--as->mcp = A64I_MOVZw | A64F_D(rd) | A64F_U16(u64 & 0xffff);
 }
 
+#define emit_loada(as, r, addr)   emit_loadu64(as, (r), (uintptr_t)(addr))
+
 /* Generic load of register with base and (small) offset address. */
 static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
@@ -278,7 +293,7 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
     emit_lso(as, irt_isnum(ir->t) ? A64I_LDRd : A64I_LDRs, r, base, ofs);
   else
 #endif
-    emit_lso(as, A64I_LDRx, r, base, ofs);
+    emit_lso(as, irt_is64(ir->t) ? A64I_LDRx : A64I_LDRw, r, base, ofs);
 }
 
 /* Generic store of register with base and (small) offset address. */
@@ -287,7 +302,7 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
   if (r >= RID_MAX_GPR) {
     emit_lso(as, irt_isnum(ir->t) ? A64I_STRd : A64I_STRs, r, base, ofs);
   } else {
-    emit_lso(as, A64I_STRx, r, base, ofs);
+    emit_lso(as, irt_is64(ir->t) ? A64I_STRx : A64I_STRw, r, base, ofs);
   }
 }
 
@@ -395,17 +410,17 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
 
 #define emit_setvmstate(as, i)                UNUSED(i)
 #define emit_spsub(as, ofs)                   emit_addptr(as, RID_SP, -(ofs))
-#define emit_setgl(as, r, field)              lua_unimpl()
 
 static void emit_call(ASMState *as, void *target)
 {
   static const int32_t imm_bits = 26;
-  MCode *p = --as->mcp;
-  ptrdiff_t delta = (char *)target - (char *)p;
-  delta >>= 2;
-  if ((delta + (1 << (imm_bits -1))) >= 0) {
-    *p = A64I_BL | (delta & ((1 << imm_bits) - 1));
-  } else {  /* Target out of range. */
-    lua_unimpl();
+  ptrdiff_t delta = (char *)target - (char *)(as->mcp - 1);
+  lua_assert((delta & 3) == 0);
+  if ((((delta >> 2) + (1 << (imm_bits - 1))) >> imm_bits) == 0) {
+    *--as->mcp = A64I_BL | ((delta >> 2) & ((1 << imm_bits) - 1));
+  } else {
+    /* Use LR for indirect calls. */
+    emit_n(as, A64I_BLR, RID_LR);
+    emit_loadu64(as, RID_LR, target);
   }
 }
