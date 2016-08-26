@@ -1035,8 +1035,8 @@ static void asm_cnew(ASMState *as, IRIns *ir)
    Reg r = k ? RID_X1 : ra_allock(as, id, allow);
    emit_lso(as, A64I_STRBw, RID_TMP, RID_RET, offsetof(GCcdata, gct));
    emit_lso(as, A64I_STRHw, r, RID_RET, offsetof(GCcdata, ctypeid));
-   emit_d(as, A64I_MOVKw|A64F_U16(~LJ_TCDATA), RID_TMP);
-   if (k) emit_d(as, A64I_MOVKw|A64F_U16(id), RID_X1);
+   emit_d(as, A64I_MOVZw|A64F_U16(~LJ_TCDATA), RID_TMP);
+   if (k) emit_d(as, A64I_MOVZw|A64F_U16(id), RID_X1);
  }
   args[0] = ASMREF_L;     /* lua_State *L */
   args[1] = ASMREF_TMP1;  /* MSize size   */
