@@ -1991,7 +1991,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.if JIT
   |  ldr L, SAVE_L
   |1:
-  |  cmp CARG1, #0
+  |  cmp CARG1w, #0
   |  blt >9				// Check for error from exit.
   |   lsl RC, CARG1, #3
   |  ldr LFUNC:CARG2, [BASE, FRAME_FUNC]
