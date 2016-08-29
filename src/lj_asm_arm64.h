@@ -1062,7 +1062,7 @@ static void asm_tbar(ASMState *as, IRIns *ir)
   allow = rset_exclude(allow, tab);
   link = ra_scratch(as, allow);
   allow = rset_exclude(allow, link);
-  gr = ra_allock(as, i64ptr(J2G(as->J)), allow);
+  gr = ra_scratch(as, allow);
   allow = rset_exclude(allow, gr);
   logr = ra_scratch(as, allow);
 
@@ -1075,6 +1075,7 @@ static void asm_tbar(ASMState *as, IRIns *ir)
   emit_dnm(as, A64I_BICw, mark, mark, logr);
   emit_lso(as, A64I_LDRw, link, gr,
      (int32_t)offsetof(global_State, gc.grayagain));
+  emit_loadu64(as, gr, i64ptr(J2G(as->J)));
   emit_cond_branch(as, CC_EQ, l_end);
   //if (logimm != (uint32_t)-1)
   //  emit_n(as, A64I_TSTIw|A64F_IS(logimm), mark);
