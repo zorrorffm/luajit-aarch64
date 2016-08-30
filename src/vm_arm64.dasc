@@ -1854,8 +1854,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr CARG1, [RA]
   |    add RA, RA, #8
   |   subs RB, RB, #8
-  |  str CARG1, [BASE, RC]
-  |    add RC, RC, #8
+  |  str CARG1, [BASE, RC, lsl #3]
+  |    add RC, RC, #1
   |   bne <1
   |2:
   |   decode_RA RA, INS
@@ -1863,7 +1863,6 @@ static void build_subroutines(BuildCtx *ctx)
   |   add RA, RA, RB
   |3:
   |   cmp RA, RC
-  |  movn CARG2, #~LJ_TNIL
   |   bhi >9				// More results wanted?
   |
   |  ldrh RAw, TRACE:CARG3->traceno
@@ -1886,8 +1885,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  b ->cont_nop
   |
   |9:  // Fill up results with nil.
-  |  str CARG2, [BASE, RC]
-  |  add RC, RC, #8
+  |  str TISNIL, [BASE, RC, lsl #3]
+  |  add RC, RC, #1
   |  b <3
   |.endif
   |
