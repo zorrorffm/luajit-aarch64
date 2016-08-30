@@ -581,9 +581,9 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
       emit_lso(as, A64I_STRx, src, dest, 0);
       emit_dnm(as, A64I_ORRx, src, src, type);
       if (irt_is64(ir->t)) {
-        emit_loadu64(as, type, (irt_toitype(ir->t) << 47));
+        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47));
       } else {
-        emit_loadu64(as, type, (irt_toitype(ir->t) << 47) | (0x7fff << 32));
+        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47) | (0x7fffull << 32));
       }
     }
     emit_loada(as, dest, &J2G(as->J)->tmptv);
