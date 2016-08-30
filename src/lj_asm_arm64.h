@@ -632,7 +632,7 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   int large_ofs = check_offset(A64I_LDRx, ofs) == OFS_INVALID;
   Reg dest = (ra_used(ir) || large_ofs) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
   Reg node = ra_alloc1(as, ir->op1, RSET_GPR);
-  Reg key = RID_NONE, type = RID_TMP, idx = node;
+  Reg key = RID_NONE, idx = node;
   RegSet allow = rset_exclude(RSET_GPR, node);
   lua_assert(ofs % sizeof(Node) == 0);
   if (large_ofs) {
@@ -1153,14 +1153,13 @@ static void asm_fpmath(ASMState *as, IRIns *ir)
 
 static int asm_swapops(ASMState *as, IRRef lref, IRRef rref)
 {
-  IRIns *ir;
   if (irref_isk(rref))
     return 0;  /* Don't swap constants to the left. */
   if (irref_isk(lref))
     return 1;  /* But swap constants to the right. */
-  ir = IR(rref);
-  /* !!!TODO check for AArch64 fuseable ops here instead */
 #if 0
+  IRIns *ir = IR(rref);
+  /* !!!TODO check for AArch64 fuseable ops here instead */
   if ((ir->o >= IR_BSHL && ir->o <= IR_BROR) ||
       (ir->o == IR_ADD && ir->op1 == ir->op2))
     return 0;  /* Don't swap fusable operands to the left. */
