@@ -1854,8 +1854,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr CARG1, [RA]
   |    add RA, RA, #8
   |   subs RB, RB, #8
-  |  str CARG1, [BASE, RC]
-  |    add RC, RC, #8
+  |  str CARG1, [BASE, RC, lsl #3]
+  |    add RC, RC, #1
   |   bne <1
   |2:
   |   decode_RA RA, INS
@@ -1863,7 +1863,6 @@ static void build_subroutines(BuildCtx *ctx)
   |   add RA, RA, RB
   |3:
   |   cmp RA, RC
-  |  movn CARG2, #~LJ_TNIL
   |   bhi >9				// More results wanted?
   |
   |  ldrh RAw, TRACE:CARG3->traceno
@@ -1886,8 +1885,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  b ->cont_nop
   |
   |9:  // Fill up results with nil.
-  |  str CARG2, [BASE, RC]
-  |  add RC, RC, #8
+  |  str TISNIL, [BASE, RC, lsl #3]
+  |  add RC, RC, #1
   |  b <3
   |.endif
   |
@@ -2023,7 +2022,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   blo >5
   |   ldr CARG3, [BASE, FRAME_FUNC]
   |   sub RC, RC, #8
-  |   add RA, RA, BASE	// Yes: RA = BASE+framesize*8, RC = nargs*8
+  |   add RA, BASE, RA, lsl #3	// Yes: RA = BASE+framesize*8, RC = nargs*8
   |   and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |5:
   |  br RB
@@ -2035,8 +2034,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  // Otherwise set KBASE for Lua function below fast function.
   |  ldr CARG3, [CARG1, #-4]
   |  decode_RA CARG1, CARG3
-  |  sub CARG2, BASE, CARG1
-  |  ldr LFUNC:CARG3, [CARG2, #-16]
+  |  sub CARG2, BASE, CARG1, lsl #3
+  |  ldr LFUNC:CARG3, [CARG2, #-32]
   |  and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |  ldr CARG3, LFUNC:CARG3->field_pc
   |  ldr KBASE, [CARG3, #PC2PROTO(k)]
