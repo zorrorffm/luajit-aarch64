@@ -1564,10 +1564,11 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
       if (!irref_isk(ref)) {
         Reg src = ra_alloc1(as, ref, rset_exclude(RSET_GPR, RID_BASE));
         if (irt_is64(ir->t)) {
-          /* TODO: 64 bit store + 32 bit load-modify-store is suboptimal. */
-          emit_lso(as, A64I_STRw, RID_TMP, RID_BASE, ofs+4);
-          emit_opk(as, A64I_ORRw, 0, RID_TMP, -(irt_toitype(ir->t)<<15), RSET_GPR);
-          emit_lso(as, A64I_LDRw, RID_TMP, RID_BASE, ofs+4);
+	  /* TODO: 64 bit store + 32 bit load-modify-store is suboptimal. */
+	  Reg type = ra_allock(as, irt_toitype(ir->t)<<15, RSET_GPR);
+	  emit_lso(as, A64I_STRw, RID_TMP, RID_BASE, ofs+4);
+	  emit_dnm(as, A64I_ORRw, RID_TMP, RID_TMP, type);
+	  emit_lso(as, A64I_LDRw, RID_TMP, RID_BASE, ofs+4);
 
           //emit_u32(as, irt_toitype(ir->t) << 15);
           //emit_rmro(as, XO_ARITHi, XOg_OR, RID_BASE, ofs+4);
