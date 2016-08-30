@@ -558,7 +558,7 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
       /* Use the number constant itself as a TValue. */
       lua_todo();
       //ra_allockreg(as, i32ptr(ir_knum(ir)), dest);
-      emit_loadu64(as, dest, ir_knum(ir));
+      emit_loada(as, dest, ir_knum(ir));
     } else {
       /* Otherwise force a spill and use the spill slot. */
       emit_opk(as, A64I_ADDx, dest, RID_SP, ra_spill(as, ir), RSET_GPR);
@@ -581,9 +581,9 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
       emit_lso(as, A64I_STRx, src, dest, 0);
       emit_dnm(as, A64I_ORRx, src, src, type);
       if (irt_is64(ir->t)) {
-        emit_loadu64(as, type, (irt_toitype(ir->t) << 47));
+        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47));
       } else {
-        emit_loadu64(as, type, (irt_toitype(ir->t) << 47) | (0x7fff << 32));
+        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47) | (0x7fffull << 32));
       }
     }
     emit_loada(as, dest, &J2G(as->J)->tmptv);
@@ -632,7 +632,7 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   int large_ofs = check_offset(A64I_LDRx, ofs) == OFS_INVALID;
   Reg dest = (ra_used(ir) || large_ofs) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
   Reg node = ra_alloc1(as, ir->op1, RSET_GPR);
-  Reg key = RID_NONE, type = RID_TMP, idx = node;
+  Reg key = RID_NONE, idx = node;
   RegSet allow = rset_exclude(RSET_GPR, node);
   lua_assert(ofs % sizeof(Node) == 0);
   if (large_ofs) {
@@ -1153,14 +1153,13 @@ static void asm_fpmath(ASMState *as, IRIns *ir)
 
 static int asm_swapops(ASMState *as, IRRef lref, IRRef rref)
 {
-  IRIns *ir;
   if (irref_isk(rref))
     return 0;  /* Don't swap constants to the left. */
   if (irref_isk(lref))
     return 1;  /* But swap constants to the right. */
-  ir = IR(rref);
-  /* !!!TODO check for AArch64 fuseable ops here instead */
 #if 0
+  IRIns *ir = IR(rref);
+  /* !!!TODO check for AArch64 fuseable ops here instead */
   if ((ir->o >= IR_BSHL && ir->o <= IR_BROR) ||
       (ir->o == IR_ADD && ir->op1 == ir->op2))
     return 0;  /* Don't swap fusable operands to the left. */
