@@ -1658,8 +1658,8 @@ static void asm_loop_fixup(ASMState *as)
     /* asm_guardcc already inverted the bcc and patched the final bl. */
     p[-2] |= ((uint32_t)delta & 0x7ffff) << 5;
   } else {
-    lua_unimpl(); /* what's going on here? */
-    p[-1] = A64I_B | ((uint32_t)((target-p)+1) & 0x03ffffffu);
+    ptrdiff_t delta = target - (p - 1);
+    p[-1] = A64I_B | ((uint32_t)(delta) & 0x03ffffffu);
   }
 }
 
