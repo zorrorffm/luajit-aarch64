@@ -1840,7 +1840,6 @@ static void build_subroutines(BuildCtx *ctx)
   |  br CRET1
   |
   |->cont_stitch:			// Trace stitching.
-  | NYI // disabled for now, because this causes asserts
   |.if JIT
   |  // RA = resultptr, CARG4 = meta base
   |   ldr RB, SAVE_MULTRES
