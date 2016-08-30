@@ -421,6 +421,6 @@ static void emit_call(ASMState *as, void *target)
   } else {
     /* Use LR for indirect calls. */
     emit_n(as, A64I_BLR, RID_LR);
-    emit_loadu64(as, RID_LR, target);
+    emit_loada(as, RID_LR, target);
   }
 }

@@ -558,7 +558,7 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
       /* Use the number constant itself as a TValue. */
       lua_todo();
       //ra_allockreg(as, i32ptr(ir_knum(ir)), dest);
-      emit_loadu64(as, dest, ir_knum(ir));
+      emit_loada(as, dest, ir_knum(ir));
     } else {
       /* Otherwise force a spill and use the spill slot. */
       emit_opk(as, A64I_ADDx, dest, RID_SP, ra_spill(as, ir), RSET_GPR);
