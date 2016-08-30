@@ -2035,7 +2035,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ldr CARG3, [CARG1, #-4]
   |  decode_RA CARG1, CARG3
   |  sub CARG2, BASE, CARG1, lsl #3
-  |  ldr LFUNC:CARG3, [CARG2, #-16]
+  |  ldr LFUNC:CARG3, [CARG2, #-32]
   |  and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |  ldr CARG3, LFUNC:CARG3->field_pc
   |  ldr KBASE, [CARG3, #PC2PROTO(k)]
