@@ -2022,7 +2022,7 @@ static void build_subroutines(BuildCtx *ctx)
   |   blo >5
   |   ldr CARG3, [BASE, FRAME_FUNC]
   |   sub RC, RC, #8
-  |   add RA, RA, BASE	// Yes: RA = BASE+framesize*8, RC = nargs*8
+  |   add RA, BASE, RA, lsl #3	// Yes: RA = BASE+framesize*8, RC = nargs*8
   |   and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |5:
   |  br RB
@@ -2034,7 +2034,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  // Otherwise set KBASE for Lua function below fast function.
   |  ldr CARG3, [CARG1, #-4]
   |  decode_RA CARG1, CARG3
-  |  sub CARG2, BASE, CARG1
+  |  sub CARG2, BASE, CARG1, lsl #3
   |  ldr LFUNC:CARG3, [CARG2, #-16]
   |  and LFUNC:CARG3, CARG3, #LJ_GCVMASK
   |  ldr CARG3, LFUNC:CARG3->field_pc
