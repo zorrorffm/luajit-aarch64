@@ -1908,7 +1908,7 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_exit_handler:
   |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
   |  // should, that would require a change to ExitState
-  |  sub     sp, sp, #1536
+  |  sub     sp, sp, #(64*8)
   |  stp     d0, d1, [sp, #0]
   |  stp     d2, d3, [sp, #16]
   |  stp     d4, d5, [sp, #32]
@@ -1941,9 +1941,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  stp     x26, x27, [sp, #464]
   |  stp     x28, x29, [sp, #480]
   |  str     lr,       [sp, #496] // x31 not valid
-  |  ldr CARG1, [sp, #(1536+184)] // Load original value of lr. 184==TMPDofs
+  |  ldr CARG1, [sp, #(64*8+184)]// Load original value of lr. 184==TMPDofs
   |   ldr TMP0, [lr]        // Load DISPATCH.
-  |   add CARG3, sp, #1536     // Recompute original value of sp.
+  |   add CARG3, sp, #(64*8)	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #504]     // Store sp in RID_SP
   |  ldr CARG2w, [CARG1, #-4]!   // Get exit instruction.
