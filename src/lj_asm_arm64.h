@@ -1265,7 +1265,16 @@ static void asm_mul(ASMState *as, IRIns *ir)
 #define asm_atan2(as, ir)	asm_callid(as, ir, IRCALL_atan2)
 #define asm_ldexp(as, ir)	asm_callid(as, ir, IRCALL_ldexp)
 
-#define asm_mod(as, ir)		asm_callid(as, ir, IRCALL_lj_vm_modi)
+static void asm_mod(ASMState *as, IRIns *ir)
+{
+#if LJ_64 && LJ_HASFFI
+  if (!irt_isint(ir->t))
+    asm_callid(as, ir, irt_isi64(ir->t) ? IRCALL_lj_carith_modi64 :
+					  IRCALL_lj_carith_modu64);
+  else
+#endif
+    asm_callid(as, ir, IRCALL_lj_vm_modi);
+}
 
 static void asm_neg(ASMState *as, IRIns *ir)
 {
