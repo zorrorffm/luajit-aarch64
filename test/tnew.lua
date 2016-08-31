@@ -1,5 +1,5 @@
 for i=1, 100 do
-    table = {}
+    mytable = {}
 end
 
-assert(type(table) == "table", "failed to create table")
+assert(type(mytable) == "table", "failed to create table")
