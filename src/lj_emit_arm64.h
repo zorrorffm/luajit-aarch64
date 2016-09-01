@@ -293,7 +293,7 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
   lua_assert(!irt_isnum(ir->t)); UNUSED(ir);
 #else
   if (r >= RID_MAX_GPR)
-    emit_lso(as, irt_isnum(ir->t) ? A64I_LDRd : A64I_LDRs, r, base, ofs);
+    emit_lso(as, irt_isnum(ir->t) ? A64I_LDRd : A64I_LDRs, r & 31, base, ofs);
   else
 #endif
     emit_lso(as, irt_is64(ir->t) ? A64I_LDRx : A64I_LDRw, r, base, ofs);
