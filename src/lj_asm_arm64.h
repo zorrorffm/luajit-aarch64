@@ -1222,7 +1222,7 @@ static void asm_intmul(ASMState *as, IRIns *ir)
     emit_dn(as, A64I_ASRx|A64F_IR(32), RID_TMP, dest);
     emit_dnm(as, A64I_SMULL, dest, right, left);
   } else {
-    emit_nm(as, A64I_MULx, dest, left);
+    emit_dnm(as, A64I_MULx, dest, left, right);
   }
 }
 
