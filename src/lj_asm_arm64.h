@@ -526,7 +526,7 @@ static void asm_strto(ASMState *as, IRIns *ir)
       }
     } else {
       Reg r = ra_dest(as, ir, RSET_FPR);
-      emit_lso(as, A64I_LDRd, r, RID_SP, 0);
+      emit_lso(as, A64I_LDRd, r & 31, RID_SP, 0);
     }
   }
 
