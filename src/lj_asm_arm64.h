@@ -782,7 +782,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
     }
     ofs = field_ofs[ir->op2];
   }
-  emit_lso(as, ai, dest, idx, ofs);
+  emit_lso(as, ai, dest & 31, idx, ofs);
 }
 
 static void asm_fstore(ASMState *as, IRIns *ir)
@@ -799,7 +799,7 @@ static void asm_fstore(ASMState *as, IRIns *ir)
       idx = ra_alloc1(as, irf->op1, rset_exclude(RSET_GPR, src));
       ofs = field_ofs[irf->op2];
     }
-    emit_lso(as, ai, src, idx, ofs);
+    emit_lso(as, ai, src & 31, idx, ofs);
   }
 }
 
@@ -1556,7 +1556,7 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
       continue;
     if (irt_isnum(ir->t)) {
       Reg src = ra_alloc1(as, ref, RSET_FPR);
-      emit_lso(as, A64I_STRd, src, RID_BASE, ofs);
+      emit_lso(as, A64I_STRd, src & 31, RID_BASE, ofs);
     } else {
       lua_assert(irt_ispri(ir->t) || irt_isaddr(ir->t) ||
                  (LJ_DUALNUM && irt_isinteger(ir->t)));
