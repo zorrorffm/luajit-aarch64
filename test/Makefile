@@ -10,7 +10,7 @@ SKIPPED_LUA_TEST_i686=mul div
 SKIPPED_LUA_TEST_aarch64=div call_vararg \
   snew \
   vload xstore_addvalue fstore xload_int \
-  abs atan2 ldexp max min mod pow \
+  abs atan2 ldexp max min pow \
   eq_other ge_none_num gt_none_num \
   fpm_ceil fpm_exp fpm_floor fpm_log fpm_log10 fpm_sin fpm_sqrt fpm_tan fpm_trunc \
   fpm_exp2 fpm_log2 fref href newref urefc urefo \
