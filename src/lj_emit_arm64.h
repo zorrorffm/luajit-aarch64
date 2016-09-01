@@ -227,6 +227,9 @@ static void emit_lso(ASMState *as, A64Ins ai, Reg rd, Reg rn, int32_t ofs)
 {
   /* !!!TODO ARM emit_lso combines LDR/STR pairs into LDRD/STRD, something
      similar possible here? */
+
+  lua_assert(rd <= 31);
+
   ofs_type ot = check_offset(ai, ofs);
   lua_assert(ot != OFS_INVALID);
   if (ot == OFS_UNSCALED) {
@@ -300,7 +303,7 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
   if (r >= RID_MAX_GPR) {
-    emit_lso(as, irt_isnum(ir->t) ? A64I_STRd : A64I_STRs, r, base, ofs);
+    emit_lso(as, irt_isnum(ir->t) ? A64I_STRd : A64I_STRs, r & 31, base, ofs);
   } else {
     emit_lso(as, irt_is64(ir->t) ? A64I_STRx : A64I_STRw, r, base, ofs);
   }
