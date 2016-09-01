@@ -1605,7 +1605,7 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
         if (tvisnil(&k)) {
           emit_lso(as, A64I_STRx, RID_TMP, RID_BASE, ofs);
           // !!!TODO (uint32_t)-1 or (uint64_t)-1
-          emit_loadu64(as, RID_TMP, 0xffffffff);
+          emit_loadu64(as, RID_TMP, 0xffffffffffffffff);
           //emit_i32(as, -1);
           //emit_rmro(as, XO_MOVmi, REX_64, RID_BASE, ofs);
         } else {
