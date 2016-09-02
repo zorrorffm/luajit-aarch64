@@ -839,6 +839,8 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
       emit_dn(as, A64I_LSLx|A64F_IR((-17%64)&0x3f)|A64F_IS(63-17), tmp, tmp);
     } else if (irt_isnum(ir->t)) {
       emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
+    } else if (irt_isint(ir->t)) {
+      emit_dn(as, A64I_SXTW, dest, dest);
     }
   } else
     tmp = ra_scratch(as, gpr);
