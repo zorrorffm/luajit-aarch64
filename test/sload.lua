@@ -8,7 +8,6 @@
 -- IRSLOAD_INHERIT (I)
 --
 -- Following case tests RI, TI, R mode.
--- TODO test other sload mode, like IRSLOAD_CONVERT.
 
 for i = 1, 200, "2" do
   x = 2
