@@ -3,11 +3,11 @@ LUAJIT?=luajit
 LUA_FLAGS?=-jdump=+rsXa
 # Define tests which should be skipped for some reasons.
 SKIPPED_LUA_TEST=fpm_cos addov
-# mul and div on x86 fail due to issue with XCFLAGS="-DLUAJIT_ENABLE_GC64"
-SKIPPED_LUA_TEST_x86_64=mul div
-SKIPPED_LUA_TEST_i686=mul div
+# mul on x86 fail due to issue with XCFLAGS="-DLUAJIT_ENABLE_GC64"
+SKIPPED_LUA_TEST_x86_64=mul
+SKIPPED_LUA_TEST_i686=mul
 # Below features have not been implemented on aarch64.
-SKIPPED_LUA_TEST_aarch64=div call_vararg \
+SKIPPED_LUA_TEST_aarch64=call_vararg \
   snew \
   vload xstore_addvalue fstore xload_int \
   abs atan2 ldexp max min pow \
