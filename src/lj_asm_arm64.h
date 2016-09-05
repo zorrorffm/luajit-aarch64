@@ -1457,9 +1457,8 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   Reg left;
   uint32_t m;
   int cmpprev0 = 0;
-
-  /* !!!TODO what does this mean, isu32 looks suspicious for 64bit arch */
-  lua_assert(irt_isint(ir->t) || irt_isu32(ir->t) || irt_isaddr(ir->t));
+  lua_assert(irt_is64(ir->t) || irt_isint(ir->t) ||
+	     irt_isu32(ir->t) || irt_isaddr(ir->t) || irt_isu8(ir->t));
 
   /* !!!TODO ARM exploits TST here for comp(BAND(left, right) */
 
