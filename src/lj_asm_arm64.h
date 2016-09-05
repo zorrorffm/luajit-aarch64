@@ -848,7 +848,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   idx = asm_fuseahuref(as, ir->op1, &ofs, gpr, A64I_LDRx);
   gpr = rset_exclude(gpr, idx);
   /* Always do the type check, even if the load result is unused. */
-  asm_guardcc(as, irt_isnum(ir->t) ? CC_LO : CC_NE);
+  asm_guardcc(as, irt_isnum(ir->t) ? CC_LS : CC_NE);
   if (irt_type(ir->t) >= IRT_NUM) {
     lua_assert(irt_isinteger(ir->t) || irt_isnum(ir->t));
     emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
@@ -968,7 +968,7 @@ dotypecheck:
     if (irt_isnum(t) && !(ir->op2 & IRSLOAD_CONVERT))
       emit_dn(as, A64I_FMOV_D_R, (dest & 31), tmp);
     /* Need type check, even if the load result is unused. */
-    asm_guardcc(as, irt_isnum(t) ? CC_LO : CC_NE);
+    asm_guardcc(as, irt_isnum(t) ? CC_LS : CC_NE);
     if (irt_type(t) >= IRT_NUM) {
       lua_assert(irt_isinteger(t) || irt_isnum(t));
       emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32),
