@@ -535,9 +535,29 @@ static Reg ra_allock(ASMState *as, int32_t k, RegSet allow)
     IRRef ref;
     r = rset_pickbot(work);
     ref = regcost_ref(as->cost[r]);
+#if LJ_64
+    if (ref < ASMREF_L) {
+      if (ra_iskref(ref)) {
+	if (k == ra_krefk(as, ref))
+	  return r;
+      } else {
+        IRIns *ir = IR(ref);
+	if ((ir->o == IR_KINT64 && k == ir_kint64(ir)->u64) ||
+#if LJ_GC64
+	    (ir->o == IR_KINT && k == ir->i) ||
+	    (ir->o == IR_KGC && k == ir_kgc(ir)) ||
+	    ((ir->o == IR_KPTR || ir->o == IR_KKPTR) && k == ir_kptr(ir)))
+#else
+	    (ir->o != IR_KINT64 && k == ir->i))
+#endif
+	  return r;
+      }
+    }
+#else
     if (ref < ASMREF_L &&
 	k == (ra_iskref(ref) ? ra_krefk(as, ref) : IR(ref)->i))
       return r;
+#endif
     rset_clear(work, r);
   }
   pick = as->freeset & allow;
