@@ -1,5 +1,4 @@
--- test upvalue store
--- TODO add more cases on different type: number, primitive, non-primitive
+-- test upvalue store for integer type.
 function setgen ()
   local x = 0.3
   return function (b)
