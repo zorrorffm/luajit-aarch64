@@ -646,11 +646,10 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
 
   uint64_t key_val = 0;
   if (irt_ispri(irkey->t)) {
-    lua_unimpl();
     lua_assert(!irt_isnil(irkey->t));
-    key_val = (uint64_t)irt_toitype(irkey->t) << 47;
+    /* primitive type's lowest 47 bits are all 1. */
+    key_val = (uint64_t)irt_toitype(irkey->t) << 47 | ((1ULL << 47) - 1);
   } else if (irt_isnum(irkey->t))  {
-    /* !!!TODO is this valid on ARM64? */
     /* Assumes -0.0 is already canonicalized to +0.0. */
     key_val = ir_knum(irkey)->u64;
   } else {
