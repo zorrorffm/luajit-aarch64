@@ -2253,6 +2253,7 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
   ASMState as_;
   ASMState *as = &as_;
   MCode *origtop;
+  int i;
 
   /* Ensure an initialized instruction beyond the last one for HIOP checks. */
   /* This also allows one RENAME to be added without reallocating curfinal. */
@@ -2328,7 +2329,7 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     /* TODO Move ir_maddr allocation to lj_trace_alloc. */
     T->szir_maddr = as->curins - REF_BIAS;
     T->ir_maddr = (MCode **)lj_mem_new(J->L, sizeof(MCode *) * T->szir_maddr);
-    for (int i = 0; i < T->szir_maddr; i++) {
+    for (i = 0; i < T->szir_maddr; i++) {
       T->ir_maddr[i] = JIT_DUMP_MCODE_EMPTY_IR;
     }
 
