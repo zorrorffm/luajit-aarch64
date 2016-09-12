@@ -884,7 +884,11 @@ static A64Ins asm_fxstoreins(IRIns *ir)
   case IRT_I16: case IRT_U16: return A64I_STRHw;
   case IRT_NUM: return A64I_STRd;
   case IRT_FLOAT: return A64I_STRs;
-  default: return A64I_STRx;
+  default:
+    if (LJ_64 && irt_is64(ir->t))
+      return A64I_STRx;
+    else
+      return A64I_STRw;
   }
 }
 
