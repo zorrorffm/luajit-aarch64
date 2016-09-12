@@ -1418,7 +1418,7 @@ static void asm_neg(ASMState *as, IRIns *ir)
     asm_fpunary(as, ir, A64I_FNEGd);
     return;
   }
-  asm_intneg(as, ir, A64I_NEGx);
+  asm_intneg(as, ir, irt_is64(ir->t) ? A64I_NEGx : A64I_NEGw);
 }
 
 static void asm_bitop(ASMState *as, IRIns *ir, A64Ins ai)
