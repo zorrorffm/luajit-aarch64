@@ -683,7 +683,9 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       emit_lso(as, A64I_LDRx, tmp, dest, offsetof(Node, key.u64));
     } else {
       Reg tisnum = ra_scratch(as, rset_exclude(allow, tmp));
-      emit_nm(as, A64I_CMPx, key, tmp);
+      Reg ftmp = ra_scratch(as, rset_exclude(RSET_FPR, key));
+      emit_nm(as, A64I_FCMPd, key, ftmp);
+      emit_dn(as, A64I_FMOV_D_R, (ftmp & 31), (tmp & 31));
       emit_cond_branch(as, CC_LO, l_next);
       emit_nm(as, A64I_CMPx|A64F_SH(A64SH_LSR, 32), tisnum, tmp);
       emit_loadi(as, tisnum, (LJ_TISNUM)<<15);
@@ -696,7 +698,7 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       Reg kreg = ra_scratch(as, rset_exclude(allow, tmp));
       allow = rset_exclude(allow, kreg);
       emit_nm(as, A64I_CMPx, kreg, tmp);
-      emit_loadu64(as, kreg, ktv.u64);  // TODO: use emit_isk13
+      emit_loadu64(as, kreg, ktv.u64);
       emit_lso(as, A64I_LDRx, tmp, dest, offsetof(Node, key.u64));
     } else {
       emit_nm(as, A64I_CMPx, tmp, RID_TMP);
