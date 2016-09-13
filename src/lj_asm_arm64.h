@@ -1387,12 +1387,32 @@ static void asm_mul(ASMState *as, IRIns *ir)
   asm_intmul(as, ir);
 }
 
+static void asm_div(ASMState *as, IRIns *ir)
+{
+#if LJ_64 && LJ_HASFFI
+  if (!irt_isnum(ir->t))
+    asm_callid(as, ir, irt_isi64(ir->t) ? IRCALL_lj_carith_divi64 :
+					  IRCALL_lj_carith_divu64);
+  else
+#endif
+    asm_fparith(as, ir, A64I_FDIVd);
+}
+
+static void asm_pow(ASMState *as, IRIns *ir)
+{
+#if LJ_64 && LJ_HASFFI
+  if (!irt_isnum(ir->t))
+    asm_callid(as, ir, irt_isi64(ir->t) ? IRCALL_lj_carith_powi64 :
+					  IRCALL_lj_carith_powu64);
+  else
+#endif
+    asm_callid(as, ir, IRCALL_lj_vm_powi);
+}
+
 #define asm_addov(as, ir)	asm_add(as, ir)
 #define asm_subov(as, ir)	asm_sub(as, ir)
 #define asm_mulov(as, ir)	asm_mul(as, ir)
 
-#define asm_div(as, ir)		asm_fparith(as, ir, A64I_FDIVd)
-#define asm_pow(as, ir)		asm_callid(as, ir, IRCALL_lj_vm_powi)
 #define asm_abs(as, ir)		asm_fpunary(as, ir, A64I_FABS)
 #define asm_atan2(as, ir)	asm_callid(as, ir, IRCALL_atan2)
 #define asm_ldexp(as, ir)	asm_callid(as, ir, IRCALL_ldexp)
