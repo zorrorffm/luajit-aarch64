@@ -297,7 +297,7 @@ typedef enum A64Ins {
   A64I_BINOPk = 0x1a000000, /* A64I_ADDx^A64I_BINOPk => ADD x0,x0,0 */
   A64I_BITOPk = 0x18000000, /* A64I_ANDx^A64I_BITOPk => AND x0,x0,0 */
   A64I_LS_U = 0x01000000, /* A64I_LDRx^A64I_LS_U => LDUR x0,[x0] */
-  A64I_LS_S = 0x00100000, /* A64I_LDRBw^A64I_LS_S => LDRSB w0,[x0] */
+  A64I_LS_S = 0x00800000, /* A64I_LDRBw^A64I_LS_S => LDRSB w0,[x0] */
 } A64Ins;
 
 typedef enum A64Shift {
