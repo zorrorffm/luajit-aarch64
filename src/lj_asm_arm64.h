@@ -1897,13 +1897,13 @@ static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
       if (nfpr > 0) {
         nfpr--;
       } else {
-        nslots++;
+        nslots += 2;
       }
     } else {
       if (ngpr > 0) {
         ngpr--;
       } else {
-        nslots++;
+        nslots += 2;
       }
     }
   }
