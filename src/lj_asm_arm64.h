@@ -870,10 +870,11 @@ static A64Ins asm_fxloadins(IRIns *ir)
   case IRT_U16: return A64I_LDRHw;
   case IRT_NUM: return A64I_LDRd;
   case IRT_FLOAT: return A64I_LDRs;
-  case IRT_P64: return A64I_LDRx;
-  case IRT_INT: return A64I_LDRw;
-  case IRT_TAB: return A64I_LDRx;
-  default: return A64I_LDRx;
+  default:
+    if (irt_is64(ir->t))
+      return A64I_LDRx;
+    else
+      return A64I_LDRw;
   }
 }
 
@@ -885,7 +886,7 @@ static A64Ins asm_fxstoreins(IRIns *ir)
   case IRT_NUM: return A64I_STRd;
   case IRT_FLOAT: return A64I_STRs;
   default:
-    if (LJ_64 && irt_is64(ir->t))
+    if (irt_is64(ir->t))
       return A64I_STRx;
     else
       return A64I_STRw;
