@@ -459,6 +459,7 @@ static void asm_tobit(ASMState *as, IRIns *ir)
 static void asm_conv(ASMState *as, IRIns *ir)
 {
   IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);
+  int st64 = (st == IRT_I64 || st == IRT_U64 || st == IRT_P64);
   int stfp = (st == IRT_NUM || st == IRT_FLOAT);
   IRRef lref = ir->op1;
   lua_assert(irt_type(ir->t) != st);
@@ -495,17 +496,34 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	(irt_isint(ir->t) ? A64I_FCVT_S32_F32 : A64I_FCVT_U32_F32));
       emit_dn(as, ai, dest, (left & 31));
     }
+  } else if (st >= IRT_I8 && st <= IRT_U16) { /* Extend to 32 bit integer. */
+    Reg dest = ra_dest(as, ir, RSET_GPR);
+    Reg left = ra_alloc1(as, lref, RSET_GPR);
+    lua_assert(irt_isint(ir->t) || irt_isu32(ir->t));
+    A64Ins ai = st == IRT_I8 ? A64I_SXTBw :
+		st == IRT_U8 ? A64I_UXTBw :
+		st == IRT_I16 ? A64I_SXTHw : A64I_UXTHw;
+    emit_dn(as, ai, dest, left);
   } else {
     Reg dest = ra_dest(as, ir, RSET_GPR);
-    if (st >= IRT_I8 && st <= IRT_U16) {  /* Extend to 32 bit integer. */
-      Reg left = ra_alloc1(as, lref, RSET_GPR);
-      lua_assert(irt_isint(ir->t) || irt_isu32(ir->t));
-      A64Ins ai = st == IRT_I8 ? A64I_SXTBw :
-		  st == IRT_U8 ? A64I_UXTBw :
-		  st == IRT_I16 ? A64I_SXTHw : A64I_UXTHw;
-      emit_dn(as, ai, dest, left);
-    } else {  /* Handle 32/32 bit no-op (cast). */
-      ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
+    if (irt_is64(ir->t)) {
+      if (st64 || !(ir->op2 & IRCONV_SEXT)) {
+	/* 64/64 bit no-op (cast) or 32 to 64 bit zero extension. */
+	ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
+      } else {  /* 32 to 64 bit sign extension. */
+        Reg left = ra_alloc1(as, lref, RSET_GPR);
+        emit_dn(as, A64I_SXTW, dest, left);
+      }
+    } else {
+      if (st64) {
+	/* This is either a 32 bit reg/reg mov which zeroes the hiword
+	** or a load of the loword from a 64 bit address.
+	*/
+        Reg left = ra_alloc1(as, lref, RSET_GPR);
+        emit_dm(as, A64I_MOVw, dest, left);
+      } else {  /* 32/32 bit no-op (cast). */
+	ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
+      }
     }
   }
 }
