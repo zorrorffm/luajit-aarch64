@@ -1941,7 +1941,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  stp     x26, x27, [sp, #464]
   |  stp     x28, x29, [sp, #480]
   |  str     lr,       [sp, #496] // x31 not valid
-  |  ldr CARG1, [sp, #(64*8+184)]// Load original value of lr. 184==TMPDofs
+  |  ldr CARG1, [sp, #(64*8)]     // Load original value of lr
   |   ldr TMP0, [lr]        // Load DISPATCH.
   |   add CARG3, sp, #(64*8)	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT

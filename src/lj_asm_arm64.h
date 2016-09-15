@@ -65,7 +65,7 @@ static MCode *asm_exitstub_gen(ASMState *as, ExitNo group)
      .long DISPATCH_address (lo)
      .long DISPATCH_address (hi)
      .long group. */
-  *mxp++ = A64I_STRx|A64F_D(RID_LR)|A64F_N(RID_SP)|A64F_A(CFRAME_OFS_TMPD>>3);
+  *mxp++ = A64I_STRx|A64F_D(RID_LR)|A64F_N(RID_SP);
   *mxp = A64I_BL|(((MCode *)(void *)lj_vm_exit_handler-mxp)&0x03ffffffu);
   mxp++;
   *mxp++ = (MCode)(dispatch & 0xffffffff);          /* DISPATCH address (lo) */
