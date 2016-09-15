@@ -209,10 +209,19 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
       if (k != -1)
         return k^A64I_BITOPk;
 #endif
-    } else if (!irt_is64(ir->t)) {
-      uint32_t k = emit_isk12(ai, ir->i);
-      if (k != -1)
-        return k ^ A64I_BINOPk;
+    } else {
+      int64_t k;
+      uint32_t m;
+      if (ir->o == IR_KINT64)
+	k = ir_kint64(ir)->u64;
+      else if (ir->o == IR_KGC)
+	k = (intptr_t)ir_kgc(ir);
+      else if (ir->o == IR_KPTR || ir->o == IR_KKPTR)
+	k = (intptr_t)ir_kptr(ir);
+      else
+	k = ir->i;
+      if (emit_isk12(k, &m))
+	return m;
     }
   } else if (mayfuse(as, ref)) {
 #if 0
@@ -616,10 +625,10 @@ static void asm_aref(ASMState *as, IRIns *ir)
     IRRef tab = IR(ir->op1)->op1;
     int32_t ofs = asm_fuseabase(as, tab);
     IRRef refa = ofs ? tab : ir->op1;
-    uint32_t k = emit_isk12(A64I_ADDx, ofs + 8*IR(ir->op2)->i);
-    if (k != -1) {
+    uint32_t k;
+    if (emit_isk12(ofs + 8*IR(ir->op2)->i, &k)) {
       base = ra_alloc1(as, refa, RSET_GPR);
-      emit_dn(as, A64I_ADDx^A64I_BINOPk^k, dest, base);
+      emit_dn(as, A64I_ADDx^k, dest, base);
       return;
     }
   }
@@ -645,9 +654,9 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   Reg key = 0, tmp = RID_TMP;
   IRRef refkey = ir->op2;
   IRIns *irkey = IR(refkey);
-  int isk = irref_isk(ir->op2);
+  int isk12, isk = irref_isk(ir->op2);
   IRType1 kt = irkey->t;
-  int32_t k = 0;
+  uint32_t k = 0;
   uint32_t khash;
   MCLabel l_end, l_loop, l_next;
   rset_clear(allow, tab);
@@ -658,14 +667,15 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       tmp = ra_scratch(as, rset_exclude(allow, key));
   } else if (irt_isnum(kt)) {
     int64_t val = (int64_t)ir_knum(irkey)->u64;
-    k = emit_isk12(A64I_CMPx, val);
-    if (!k) {
+    isk12 = emit_isk12(val, &k);
+    if (!isk12) {
+      /* TODO: Cannot use ra_allock for 64-bit constants. */
       key = ra_allock(as, val, allow);
       rset_clear(allow, key);
     }
   } else if (!irt_ispri(kt)) {
-    k = emit_isk12(A64I_CMPw, irkey->i);
-    if (!k) {
+    isk12 = emit_isk12(irkey->i, &k);
+    if (!isk12) {
       key = ra_alloc1(as, refkey, allow);
       rset_clear(allow, key);
     }
@@ -694,8 +704,8 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   if (irt_isnum(kt)) {
     if (isk) {
       /* Assumes -0.0 is already canonicalized to +0.0. */
-      if (k)
-        emit_n(as, A64I_CMPx^A64I_BINOPk^k, tmp);
+      if (isk12)
+        emit_n(as, A64I_CMPx^k, tmp);
       else
         emit_nm(as, A64I_CMPx, key, tmp);
       emit_lso(as, A64I_LDRx, tmp, dest, offsetof(Node, key.u64));
@@ -1701,9 +1711,8 @@ static void asm_stack_check(ASMState *as, BCReg topslot,
   }
   emit_branch(as, A64I_BL, exitstub_addr(as->J, exitno));
   emit_cond_branch(as, CC_LS^1, as->mcp+1);
-  k = emit_isk12(0, (int32_t)(8*topslot));
-  lua_assert(k != -1);
-  emit_n(as, A64I_CMPx^A64I_BINOPk^k, RID_TMP);
+  emit_isk12((8*topslot), &k);
+  emit_n(as, A64I_CMPx^k, RID_TMP);
   emit_dnm(as, A64I_SUBx, RID_TMP, RID_TMP, pbase);
   emit_lso(as, A64I_LDRx, RID_TMP, RID_TMP,
 	   (int32_t)offsetof(lua_State, maxstack));
@@ -1899,8 +1908,9 @@ static void asm_tail_fixup(ASMState *as, TraceNo lnk)
     as->mctop = --p;
   } else {
     /* Patch stack adjustment. */
-    uint32_t k = emit_isk12(A64I_ADDx, spadj);
-    p[-2] = (A64I_ADDx^A64I_BINOPk^k) | A64F_D(RID_SP) | A64F_N(RID_SP);
+    uint32_t k;
+    emit_isk12(spadj, &k);
+    p[-2] = (A64I_ADDx^k) | A64F_D(RID_SP) | A64F_N(RID_SP);
   }
   /* Patch exit branch. */
   target = lnk ? traceref(as->J, lnk)->mcode : (MCode *)lj_vm_exit_interp;

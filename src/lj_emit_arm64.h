@@ -56,17 +56,18 @@ static void emit_dnma(ASMState *as, A64Ins ai, Reg rd, Reg rn, Reg rm, Reg ra)
 }
 
 /* Encode constant in K12 format for data processing instructions. */
-static uint32_t emit_isk12(A64Ins ai, int32_t n)
+static int emit_isk12(int64_t n, uint32_t *k12)
 {
-    if (n >= 0 && n <= 0xfff)
-    {
-        return (n & 0xfff) << 10;
-    }
-    if ((n & 0xfff) == 0 && n < (0xfff << 12))
-    {
-        return (((n >> 12) & 0xfff) << 10) | (1 << 22);
-    }
-    return -1;
+  uint64_t k = (n < 0) ? -n : n;
+  uint32_t m = (n < 0) ? 0x40000000 : 0;
+  if (k < 4096) {
+    *k12 = A64I_BINOPk|m|(k<<10);
+    return 1;
+  } else if ((k & 0xfff000) == k) {
+    *k12 = A64I_BINOPk|m|0x400000|(k>>2);
+    return 1;
+  }
+  return 0;
 }
 
 int count_leading_zeroes(uint64_t value)
@@ -333,9 +334,9 @@ static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
 static void emit_opk(ASMState *as, A64Ins ai, Reg dest, Reg src,
                      int32_t i, RegSet allow)
 {
-  uint32_t k = emit_isk12(ai, i);
-  if (k != -1)
-    emit_dn(as, ai^k^A64I_BINOPk, dest, src);
+  uint32_t k;
+  if (emit_isk12(i, &k))
+    emit_dn(as, ai^k, dest, src);
   else
     emit_dnm(as, ai, dest, src, ra_allock(as, i, allow));
 }
