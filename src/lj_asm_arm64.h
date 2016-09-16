@@ -18,13 +18,6 @@ static Reg ra_hintalloc(ASMState *as, IRRef ref, Reg hint, RegSet allow)
   return r;
 }
 
-/* Allocate a scratch register pair. */
-static Reg ra_scratchpair(ASMState *as, RegSet allow)
-{
-    lua_unimpl();
-   return 0;
-}
-
 /* Allocate two source registers for three-operand instructions. */
 static Reg ra_alloc2(ASMState *as, IRIns *ir, RegSet allow)
 {
@@ -1665,20 +1658,12 @@ static void asm_comp(ASMState *as, IRIns *ir)
 
 #define asm_equal(as, ir)	asm_comp(as, ir)
 
-#if LJ_HASFFI
-/* 64 bit integer comparisons. */
-static void asm_int64comp(ASMState *as, IRIns *ir)
-{
-    lua_unimpl();
-}
-#endif
-
 /* -- Support for 64 bit ops in 32 bit mode ------------------------------- */
 
 /* Hiword op of a split 64 bit op. Previous op must be the loword op. */
 static void asm_hiop(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  UNUSED(as); UNUSED(ir); lua_assert(0);  /* Unused on 64 bit or without FFI. */
 }
 
 /* -- Profiling ----------------------------------------------------------- */

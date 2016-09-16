@@ -5,11 +5,6 @@
 
 static Reg ra_allock(ASMState *as, int32_t k, RegSet allow);
 
-static void emit_loadn(ASMState *as, Reg r, cTValue *tv)
-{
-  lua_unimpl();
-}
-
 #define emit_canremat(ref)      ((ref) <= ASMREF_L)
 
 #define glofs(as, k) \
