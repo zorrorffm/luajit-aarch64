@@ -1206,37 +1206,21 @@ static void asm_cnew(ASMState *as, IRIns *ir)
 
 static void asm_tbar(ASMState *as, IRIns *ir)
 {
-  Reg tab, link, logr, gr, mark = RID_TMP;
-  uint32_t allow = RSET_GPR;
-  MCLabel l_end;
-  //uint32_t logimm = emit_isk13(0, LJ_GC_BLACK);
-
-  /* Allocate the registers */
-  tab = ra_alloc1(as, ir->op1, allow);
-  allow = rset_exclude(allow, tab);
-  link = ra_scratch(as, allow);
-  allow = rset_exclude(allow, link);
-  gr = ra_scratch(as, allow);
-  allow = rset_exclude(allow, gr);
-  logr = ra_scratch(as, allow);
-
-  l_end = emit_label(as);
-
-  emit_lso(as, A64I_STRw, link, tab, (int32_t)offsetof(GCtab, gclist));
+  Reg tab = ra_alloc1(as, ir->op1, RSET_GPR);
+  Reg link = ra_scratch(as, rset_exclude(RSET_GPR, tab));
+  Reg gr = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR, tab), link));
+  Reg mark = RID_TMP;
+  MCLabel l_end = emit_label(as);
+  emit_lso(as, A64I_STRx, link, tab, (int32_t)offsetof(GCtab, gclist));
   emit_lso(as, A64I_STRBw, mark, tab, (int32_t)offsetof(GCtab, marked));
-  emit_lso(as, A64I_STRw, tab, gr,
-     (int32_t)offsetof(global_State, gc.grayagain));
-  emit_dnm(as, A64I_BICw, mark, mark, logr);
-  emit_lso(as, A64I_LDRw, link, gr,
-     (int32_t)offsetof(global_State, gc.grayagain));
-  emit_loadu64(as, gr, i64ptr(J2G(as->J)));
+  emit_lso(as, A64I_STRx, tab, gr,
+	   (int32_t)offsetof(global_State, gc.grayagain));
+  emit_dn(as, A64I_ANDIw|emit_isk13(A64I_ANDIw, ~LJ_GC_BLACK), mark, mark);
+  emit_lso(as, A64I_LDRx, link, gr,
+	   (int32_t)offsetof(global_State, gc.grayagain));
+  emit_loada(as, gr, i64ptr(J2G(as->J)));
   emit_cond_branch(as, CC_EQ, l_end);
-  //if (logimm != (uint32_t)-1)
-  //  emit_n(as, A64I_TSTIw|A64F_IS(logimm), mark);
-  //else {
-    emit_nm(as, A64I_TSTw, mark, logr);
-    emit_d(as, A64I_MOVKw|A64F_U16(LJ_GC_BLACK), logr);
-  //}
+  emit_n(as, A64I_TSTIw|emit_isk13(A64I_TSTIw, LJ_GC_BLACK), mark);
   emit_lso(as, A64I_LDRBw, mark, tab, (int32_t)offsetof(GCtab, marked));
 }
 
