@@ -113,8 +113,6 @@ typedef struct {
 #define EXITSTUB_SPACING        4
 #define EXITSTUBS_PER_GROUP     32
 
-#define exitstub_trace_addr(T, exitno) ({lua_unimpl(); (void*)0;})
-
 
 /* -- Instructions -------------------------------------------------------- */
 
