@@ -175,7 +175,7 @@ static uint32_t emit_isk13(A64Ins ai, int64_t n)
     r = (clz_a + 1) & (d - 1);
   s = ((-d << 1) | (s - 1)) & 0x3f;
   res = (out_n<<12) | (r << 6) | s;
-  return res;
+  return (res<<10);
 }
 
 /* -- Emit loads/stores --------------------------------------------------- */
