@@ -107,7 +107,7 @@ int count_leading_zeroes(uint64_t value)
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /******************************************************************************/
-static uint32_t emit_isk13(A64Ins ai, int64_t n)
+static uint32_t emit_isk13(A64Ins ai, uint64_t n)
 {
   int is64 = ((ai & A64I_X) != 0x0);
   uint32_t res;
