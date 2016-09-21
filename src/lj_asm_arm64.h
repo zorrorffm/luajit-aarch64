@@ -576,34 +576,28 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref)
   if (irt_isnum(ir->t)) {
     if (irref_isk(ref)) {
       /* Use the number constant itself as a TValue. */
-      lua_todo();
-      //ra_allockreg(as, i32ptr(ir_knum(ir)), dest);
       emit_loada(as, dest, ir_knum(ir));
     } else {
       /* Otherwise force a spill and use the spill slot. */
       emit_opk(as, A64I_ADDx, dest, RID_SP, ra_spill(as, ir), RSET_GPR);
     }
   } else {
-    lua_todo(); /* TODO: not tested */
     /* Otherwise use g->tmptv to hold the TValue. */
     RegSet allow = rset_exclude(RSET_GPR, dest);
     Reg src;
     if (irref_isk(ref)) {
       TValue k;
       lj_ir_kvalue(as->J->L, &k, ir);
-      src = ra_scratch(as, allow);
-      emit_lso(as, A64I_STRx, src, dest, 0);
-      emit_loadu64(as, src, k.u64);
-      /* TODO: Optimize. */
+      emit_lso(as, A64I_STRx, RID_TMP, dest, 0);
+      emit_loadu64(as, RID_TMP, k.u64);
     } else {
-      Reg type = ra_scratch(as, allow);
       src = ra_alloc1(as, ref, allow);
       emit_lso(as, A64I_STRx, src, dest, 0);
-      emit_dnm(as, A64I_ORRx, src, src, type);
+      emit_dnm(as, A64I_ORRx, src, src, RID_TMP);
       if (irt_is64(ir->t)) {
-        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47));
+        emit_loadu64(as, RID_TMP, ((uint64_t)irt_toitype(ir->t) << 47));
       } else {
-        emit_loadu64(as, type, ((uint64_t)irt_toitype(ir->t) << 47) | (0x7fffull << 32));
+        emit_loadu64(as, RID_TMP, ((uint64_t)irt_toitype(ir->t) << 47) | (0x7fffull << 32));
       }
     }
     emit_loada(as, dest, &J2G(as->J)->tmptv);
