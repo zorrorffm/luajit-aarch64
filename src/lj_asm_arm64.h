@@ -713,27 +713,29 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       emit_lso(as, A64I_LDRx, tmp, dest, offsetof(Node, key.n));
     }
   } else if (irt_isaddr(kt)) {
+    Reg scr = ra_scratch(as, rset_exclude(allow, tmp));
+    allow = rset_exclude(allow, scr);
     if (isk) {
       TValue ktv;
       ktv.u64 = ((uint64_t)irt_toitype(irkey->t) << 47) | irkey[1].tv.u64;
-      Reg kreg = ra_scratch(as, rset_exclude(allow, tmp));
-      allow = rset_exclude(allow, kreg);
-      emit_nm(as, A64I_CMPx, kreg, tmp);
-      emit_loadu64(as, kreg, ktv.u64);
+      emit_nm(as, A64I_CMPx, scr, tmp);
+      emit_loadu64(as, scr, ktv.u64);
       emit_lso(as, A64I_LDRx, tmp, dest, offsetof(Node, key.u64));
     } else {
-      emit_nm(as, A64I_CMPx, tmp, RID_TMP);
-      emit_lso(as, A64I_LDRx, RID_TMP, dest, offsetof(Node, key.u64));
+      emit_nm(as, A64I_CMPx, tmp, scr);
+      emit_lso(as, A64I_LDRx, scr, dest, offsetof(Node, key.u64));
     }
   } else {
     /* TODO: not tested */
     lua_todo();
     lua_assert(irt_ispri(kt) && !irt_isnil(kt));
+    Reg scr = ra_scratch(as, rset_exclude(allow, tmp));
+    allow = rset_exclude(allow, scr);
   //  emit_u32(as, (irt_toitype(kt)<<15)|0x7fff);
   //  emit_rmro(as, XO_ARITHi, XOg_CMP, dest, offsetof(Node, key.it));
-    emit_nm(as, A64I_CMPw, dest, tmp);
+    emit_nm(as, A64I_CMPw, scr, tmp);
     emit_loadi(as, tmp, (irt_toitype(kt)<<15)|0x7fff);
-    emit_lso(as, A64I_LDRw, RID_TMP, dest, offsetof(Node, key.it));
+    emit_lso(as, A64I_LDRw, scr, dest, offsetof(Node, key.it));
   }
 
   *l_loop = A64I_Bcond | (((as->mcp-l_loop) & 0x0007ffffu) << 5) | CC_NE;
@@ -754,8 +756,8 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       emit_dnm(as, A64I_ANDw, dest, dest, tmphash);
       emit_lso(as, A64I_LDRw, dest, tab, offsetof(GCtab, hmask));
     } else if (irt_isstr(kt)) {  /* Fetch of str->hash is cheaper than ra_allock. */
-      emit_dnm(as, A64I_ANDw, dest, dest, RID_TMP);
-      emit_lso(as, A64I_LDRw, RID_TMP, key, offsetof(GCstr, hash));
+      emit_dnm(as, A64I_ANDw, dest, dest, tmp);
+      emit_lso(as, A64I_LDRw, tmp, key, offsetof(GCstr, hash));
       emit_lso(as, A64I_LDRw, dest, tab, offsetof(GCtab, hmask));
     } else {  /* Must match with hash*() in lj_tab.c. */
       emit_dnm(as, A64I_ANDw, dest, dest, tmp);
