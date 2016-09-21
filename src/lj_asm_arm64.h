@@ -1654,7 +1654,13 @@ static void asm_hiop(ASMState *as, IRIns *ir)
 
 static void asm_prof(ASMState *as, IRIns *ir)
 {
-    lua_unimpl();
+  uint32_t k;
+  UNUSED(ir);
+  asm_guardcc(as, CC_NE);
+  k = emit_isk13(A64I_TSTIw, HOOK_PROFILE);
+  lua_assert(k != (uint32_t)-1);
+  emit_n(as, A64I_TSTIw | k, RID_TMP);
+  emit_lsptr(as, A64I_LDRBw, RID_TMP, (void *)&J2G(as->J)->hookmask);
 }
 
 /* -- Stack handling ------------------------------------------------------ */
