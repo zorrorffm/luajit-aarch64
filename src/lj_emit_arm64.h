@@ -407,7 +407,7 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
   }
 }
 
-#define emit_jmp(as, target) lua_unimpl()
+#define emit_jmp(as, target) emit_branch(as, A64I_B, (target))
 
 #define emit_setvmstate(as, i)                UNUSED(i)
 #define emit_spsub(as, ofs)                   emit_addptr(as, RID_SP, -(ofs))
