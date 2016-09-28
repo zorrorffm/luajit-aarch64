@@ -1929,13 +1929,12 @@ static void build_subroutines(BuildCtx *ctx)
   |  savex_, 24, 25
   |  savex_, 26, 27
   |  savex_, 28, 29
-  |  stp     d30, d31, [sp, #30*8]
+  |  stp d30, d31, [sp, #30*8]
   |  ldr CARG1, [sp, #64*8]	// Load original value of lr
   |   add CARG3, sp, #64*8	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
-  |    str CARG3, [sp, #504]	// Store sp in RID_SP
   |  ldr CARG2w, [CARG1, #-4]!	// Get exit instruction.
-  |   str CARG1, [sp, #496]	// Store exit pc in RID_LR and ...
+  |   stp CARG1, CARG3, [sp, #62*8]	// Store exit pc in RID_LR and ...
   |  lsl CARG2, CARG2, #38	// !!!TODO is this extracting branch target?
   |  add CARG1, CARG1, CARG2, asr #36 // I think it is, so 8/6 are wrong here
   |   ldr CARG2w, [lr, #8]	// Load exit stub group offset.
