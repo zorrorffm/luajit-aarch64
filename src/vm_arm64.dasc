@@ -1905,87 +1905,60 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Trace exit handler -------------------------------------------------
   |//-----------------------------------------------------------------------
   |
+  |.macro savex_, a, b
+  |  stp d..a, d..b, [sp, #a*8]
+  |  stp x..a, x..b, [sp, #32*8+a*8]
+  |.endmacro
+  |
   |->vm_exit_handler:
-  |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
-  |  // should, that would require a change to ExitState
   |  sub     sp, sp, #(64*8)
-  |  stp     d0, d1, [sp, #0]
-  |  stp     d2, d3, [sp, #16]
-  |  stp     d4, d5, [sp, #32]
-  |  stp     d6, d7, [sp, #48]
-  |  stp     d8, d9, [sp, #64]
-  |  stp     d10, d11, [sp, #80]
-  |  stp     d12, d13, [sp, #96]
-  |  stp     d14, d15, [sp, #112]
-  |  stp     d16, d17, [sp, #128]
-  |  stp     d18, d19, [sp, #144]
-  |  stp     d20, d21, [sp, #160]
-  |  stp     d22, d23, [sp, #176]
-  |  stp     d24, d25, [sp, #192]
-  |  stp     d26, d27, [sp, #208]
-  |  stp     d28, d29, [sp, #224]
-  |  stp     d30, d31, [sp, #240]
-  |  stp     x0, x1, [sp, #256]
-  |  stp     x2, x3, [sp, #272]
-  |  stp     x4, x5, [sp, #288]
-  |  stp     x6, x7, [sp, #304]
-  |  stp     x8, x9, [sp, #320]
-  |  stp     x10, x11, [sp, #336]
-  |  stp     x12, x13, [sp, #352]
-  |  stp     x14, x15, [sp, #368]
-  |  stp     x16, x17, [sp, #384]
-  |  stp     x18, x19, [sp, #400]
-  |  stp     x20, x21, [sp, #416]
-  |  stp     x22, x23, [sp, #432]
-  |  stp     x24, x25, [sp, #448]
-  |  stp     x26, x27, [sp, #464]
-  |  stp     x28, x29, [sp, #480]
-  |  str     lr,       [sp, #496] // x31 not valid
-  |  ldr CARG1, [sp, #(64*8)]     // Load original value of lr
-  |   ldr TMP0, [lr]        // Load DISPATCH.
-  |   add CARG3, sp, #(64*8)	// Recompute original value of sp.
+  |  savex_, 0, 1
+  |  savex_, 2, 3
+  |  savex_, 4, 5
+  |  savex_, 6, 7
+  |  savex_, 8, 9
+  |  savex_, 10, 11
+  |  savex_, 12, 13
+  |  savex_, 14, 15
+  |  savex_, 16, 17
+  |  savex_, 18, 19
+  |  savex_, 20, 21
+  |  savex_, 22, 23
+  |  savex_, 24, 25
+  |  savex_, 26, 27
+  |  savex_, 28, 29
+  |  stp d30, d31, [sp, #30*8]
+  |  ldr CARG1, [sp, #64*8]	// Load original value of lr.
+  |   add CARG3, sp, #64*8	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
-  |    str CARG3, [sp, #504]     // Store sp in RID_SP
-  |  ldr CARG2w, [CARG1, #-4]!   // Get exit instruction.
-  |   str CARG1, [sp, #496]      // Store exit pc in RID_LR and ...
-  |//   str CARG1, [sp, #504]      // RID_SP (EXITSTATE_REG)
-  |  lsl CARG2, CARG2, #38       // !!!TODO is this extracting branch target?
-  |  add CARG1, CARG1, CARG2, asr #36 // I think it is, so 8/6 are wrong here
-  |   // !!!TODO w or x here?
-  |   ldr CARG2w, [lr, #8]      // Load exit stub group offset.
+  |  ldr CARG2w, [CARG1, #-4]!	// Get exit instruction.
+  |   stp CARG1, CARG3, [sp, #62*8]	// Store exit pc/sp in RID_LR/RID_SP.
+  |  lsl CARG2, CARG2, #38
+  |  add CARG1, CARG1, CARG2, asr #36
+  |   ldr CARG2w, [lr, #8]	// Load exit stub group offset.
   |   sub CARG1, CARG1, lr
-  |   sub CARG1, CARG1, #12      // there are 2x dispatch words + group offset
-  |  movn TMP1, #~DISPATCH_GL(cur_L)
-  |  ldr L, [TMP0, TMP1]
-  |   add CARG1, CARG2, CARG1, lsr #2   // Compute exit number.
-  |  movn TMP1, #~DISPATCH_GL(jit_base)
-  |    ldr BASE, [TMP0, TMP1]
+  |   sub CARG1, CARG1, #12
+  |  ldr L, GL->cur_L
+  |   add CARG1, CARG2, CARG1, lsr #2	// Compute exit number.
+  |    ldr BASE, GL->jit_base
   |   st_vmstate CARG4
-  |  movn TMP1, #~DISPATCH_J(exitno)
-  |   str CARG1w, [TMP0, TMP1]
-  |   mov CARG4, #0
+  |   str CARG1w, [GL, #GL_J(exitno)]
   |    str BASE, L->base
-  |  movn TMP1, #~DISPATCH_J(L)
-  |  str L, [TMP0, TMP1]
-  |  movn TMP1, #~DISPATCH_GL(jit_base)
-  |   str CARG4, [TMP0, TMP1]
-  |  sub CARG1, TMP0, #-GG_DISP2J
+  |  str L, [GL, #GL_J(L)]
+  |   str xzr, GL->jit_base
+  |  add CARG1, GL, #GG_G2J
   |  mov CARG2, sp
-  |  bl extern lj_trace_exit            // (jit_State *J, ExitState *ex)
+  |  bl extern lj_trace_exit		// (jit_State *J, ExitState *ex)
   |  // Returns MULTRES (unscaled) or negated error code.
   |  ldr CARG2, L->cframe
   |   ldr BASE, L->base
-  |  movn TMP1, #~CFRAME_RAWMASK
-  |  and CARG2, CARG2, TMP1
-  |  mov sp, CARG2
-  |   ldr PC, SAVE_PC                   // Get SAVE_PC.
-  |  str L, SAVE_L                      // Set SAVE_L (on-trace resume/yield).
+  |  and sp, CARG2, #CFRAME_RAWMASK
+  |   ldr PC, SAVE_PC			// Get SAVE_PC.
+  |  str L, SAVE_L			// Set SAVE_L (on-trace resume/yield).
   |  b >1
   |
   |->vm_exit_interp:
-  |  // arm: CARG1 = MULTRES or negated error code, BASE, PC and DISPATCH set.
-  |  // arm64: BASE, PC, L, GL need to be set. They are when coming from
-  |  //        vm_exit_handler, but what about when entering here?
+  |  // CARG1 = MULTRES or negated error code, BASE, PC and GL set.
   |.if JIT
   |  ldr L, SAVE_L
   |1:
@@ -1998,10 +1971,9 @@ static void build_subroutines(BuildCtx *ctx)
   |    movn TISNIL, #0
   |  and LFUNC:CARG2, CARG2, #LJ_GCVMASK
   |   str RC, SAVE_MULTRES
-  |   mov CARG3, #0
   |   str BASE, L->base
   |  ldr CARG2, LFUNC:CARG2->field_pc
-  |   str CARG3, [GL, #offsetof(global_State, jit_base)]
+  |   str xzr, GL->jit_base
   |    mv_vmstate CARG4, INTERP
   |  ldr KBASE, [CARG2, #PC2PROTO(k)]
   |  // Modified copy of ins_next which handles function header dispatch, too.
@@ -2045,6 +2017,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  mov CARG1, L
   |  bl extern lj_err_throw		// (lua_State *L, int errcode)
   |.endif
+  |
   |//-----------------------------------------------------------------------
   |//-- Math helper functions ----------------------------------------------
   |//-----------------------------------------------------------------------
