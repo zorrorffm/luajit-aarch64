@@ -1911,8 +1911,6 @@ static void build_subroutines(BuildCtx *ctx)
   |.endmacro
   |
   |->vm_exit_handler:
-  |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
-  |  // should, that would require a change to ExitState
   |  sub     sp, sp, #(64*8)
   |  savex_, 0, 1
   |  savex_, 2, 3
@@ -1930,16 +1928,16 @@ static void build_subroutines(BuildCtx *ctx)
   |  savex_, 26, 27
   |  savex_, 28, 29
   |  stp d30, d31, [sp, #30*8]
-  |  ldr CARG1, [sp, #64*8]	// Load original value of lr
+  |  ldr CARG1, [sp, #64*8]	// Load original value of lr.
   |   add CARG3, sp, #64*8	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |  ldr CARG2w, [CARG1, #-4]!	// Get exit instruction.
-  |   stp CARG1, CARG3, [sp, #62*8]	// Store exit pc in RID_LR and ...
-  |  lsl CARG2, CARG2, #38	// !!!TODO is this extracting branch target?
-  |  add CARG1, CARG1, CARG2, asr #36 // I think it is, so 8/6 are wrong here
+  |   stp CARG1, CARG3, [sp, #62*8]	// Store exit pc/sp in RID_LR/RID_SP.
+  |  lsl CARG2, CARG2, #38
+  |  add CARG1, CARG1, CARG2, asr #36
   |   ldr CARG2w, [lr, #8]	// Load exit stub group offset.
   |   sub CARG1, CARG1, lr
-  |   sub CARG1, CARG1, #12	// there are 2x dispatch words + group offset
+  |   sub CARG1, CARG1, #12
   |  ldr L, GL->cur_L
   |   add CARG1, CARG2, CARG1, lsr #2	// Compute exit number.
   |    ldr BASE, GL->jit_base
@@ -1960,9 +1958,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  b >1
   |
   |->vm_exit_interp:
-  |  // arm: CARG1 = MULTRES or negated error code, BASE, PC and DISPATCH set.
-  |  // arm64: BASE, PC, L, GL need to be set. They are when coming from
-  |  //        vm_exit_handler, but what about when entering here?
+  |  // CARG1 = MULTRES or negated error code, BASE, PC and GL set.
   |.if JIT
   |  ldr L, SAVE_L
   |1:
