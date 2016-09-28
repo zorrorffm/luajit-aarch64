@@ -1905,43 +1905,33 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Trace exit handler -------------------------------------------------
   |//-----------------------------------------------------------------------
   |
+  |.macro savex_, a, b
+  |  stp d..a, d..b, [sp, #a*8]
+  |  stp x..a, x..b, [sp, #32*8+a*8]
+  |.endmacro
+  |
   |->vm_exit_handler:
   |  // !!!TODO we don't set up the frame pointer (x29) here, we probably
   |  // should, that would require a change to ExitState
   |  sub     sp, sp, #(64*8)
-  |  stp     d0, d1, [sp, #0]
-  |  stp     x0, x1, [sp, #(8*32)+0]
-  |  stp     d2, d3, [sp, #16]
-  |  stp     x2, x3, [sp, #(8*32)+16]
-  |  stp     d4, d5, [sp, #32]
-  |  stp     x4, x5, [sp, #(8*32)+32]
-  |  stp     d6, d7, [sp, #48]
-  |  stp     x6, x7, [sp, #(8*32)+48]
-  |  stp     d8, d9, [sp, #64]
-  |  stp     x8, x9, [sp, #(8*32)+64]
-  |  stp     d10, d11, [sp, #80]
-  |  stp     x10, x11, [sp, #(8*32)+80]
-  |  stp     d12, d13, [sp, #96]
-  |  stp     x12, x13, [sp, #(8*32)+96]
-  |  stp     d14, d15, [sp, #112]
-  |  stp     x14, x15, [sp, #(8*32)+112]
-  |  stp     d16, d17, [sp, #128]
-  |  stp     x16, x17, [sp, #(8*32)+128]
-  |  stp     d18, d19, [sp, #144]
-  |  stp     x18, x19, [sp, #(8*32)+144]
-  |  stp     d20, d21, [sp, #160]
-  |  stp     x20, x21, [sp, #(8*32)+160]
-  |  stp     d22, d23, [sp, #176]
-  |  stp     x22, x23, [sp, #(8*32)+176]
-  |  stp     d24, d25, [sp, #192]
-  |  stp     x24, x25, [sp, #(8*32)+192]
-  |  stp     d26, d27, [sp, #208]
-  |  stp     x26, x27, [sp, #(8*32)+208]
-  |  stp     d28, d29, [sp, #224]
-  |  stp     x28, x29, [sp, #(8*32)+224]
-  |  stp     d30, d31, [sp, #240]
-  |  ldr CARG1, [sp, #(64*8)]	// Load original value of lr
-  |   add CARG3, sp, #(64*8)	// Recompute original value of sp.
+  |  savex_, 0, 1
+  |  savex_, 2, 3
+  |  savex_, 4, 5
+  |  savex_, 6, 7
+  |  savex_, 8, 9
+  |  savex_, 10, 11
+  |  savex_, 12, 13
+  |  savex_, 14, 15
+  |  savex_, 16, 17
+  |  savex_, 18, 19
+  |  savex_, 20, 21
+  |  savex_, 22, 23
+  |  savex_, 24, 25
+  |  savex_, 26, 27
+  |  savex_, 28, 29
+  |  stp     d30, d31, [sp, #30*8]
+  |  ldr CARG1, [sp, #64*8]	// Load original value of lr
+  |   add CARG3, sp, #64*8	// Recompute original value of sp.
   |   mv_vmstate CARG4, EXIT
   |    str CARG3, [sp, #504]	// Store sp in RID_SP
   |  ldr CARG2w, [CARG1, #-4]!	// Get exit instruction.
