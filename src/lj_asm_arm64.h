@@ -1373,8 +1373,7 @@ static void asm_add(ASMState *as, IRIns *ir)
 static void asm_sub(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
-    if (!asm_fusemadd(as, ir, A64I_FNMSUBd, A64I_FMSUBd))
-      asm_fparith(as, ir, A64I_FSUBd);
+    asm_fparith(as, ir, A64I_FSUBd);
     return;
   }
   asm_intop_s(as, ir, irt_is64(ir->t) ? A64I_SUBx : A64I_SUBw);
