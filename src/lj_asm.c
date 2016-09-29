@@ -91,7 +91,7 @@ typedef struct ASMState {
   MCode *realign;	/* Realign loop if not NULL. */
 
 #ifdef RID_NUM_KREF
-  int32_t krefk[RID_NUM_KREF];
+  intptr_t krefk[RID_NUM_KREF];
 #endif
   IRRef1 phireg[RID_MAX];  /* PHI register references. */
   uint16_t parentmap[LJ_MAX_JSLOTS];  /* Parent instruction to RegSP map. */
@@ -144,7 +144,7 @@ static LJ_AINLINE void checkmclim(ASMState *as)
 #define ra_krefreg(ref)		((Reg)(RID_MIN_KREF + (Reg)(ref)))
 #define ra_krefk(as, ref)	(as->krefk[(ref)])
 
-static LJ_AINLINE void ra_setkref(ASMState *as, Reg r, int32_t k)
+static LJ_AINLINE void ra_setkref(ASMState *as, Reg r, intptr_t k)
 {
   IRRef ref = (IRRef)(r - RID_MIN_KREF);
   as->krefk[ref] = k;
@@ -324,7 +324,11 @@ static Reg ra_rematk(ASMState *as, IRRef ref)
     lua_assert(!rset_test(as->freeset, r));
     ra_free(as, r);
     ra_modified(as, r);
+#if LJ_64
     emit_loadi(as, r, ra_krefk(as, ref));
+#else
+    emit_loadu64(as, r, ra_krefk(as, ref));
+#endif
     return r;
   }
   ir = IR(ref);
@@ -526,7 +530,7 @@ static void ra_evictk(ASMState *as)
 
 #ifdef RID_NUM_KREF
 /* Allocate a register for a constant. */
-static Reg ra_allock(ASMState *as, int32_t k, RegSet allow)
+static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
 {
   /* First try to find a register which already holds the same constant. */
   RegSet pick, work = ~as->freeset & RSET_GPR;
@@ -577,7 +581,7 @@ static Reg ra_allock(ASMState *as, int32_t k, RegSet allow)
 }
 
 /* Allocate a specific register for a constant. */
-static void ra_allockreg(ASMState *as, int32_t k, Reg r)
+static void ra_allockreg(ASMState *as, intptr_t k, Reg r)
 {
   Reg kr = ra_allock(as, k, RID2RSET(r));
   if (kr != r) {
@@ -588,6 +592,7 @@ static void ra_allockreg(ASMState *as, int32_t k, Reg r)
   }
 }
 #else
+/* TODO: This is an inconsistency (intptr_t vs int32_t). */
 #define ra_allockreg(as, k, r)		emit_loadi(as, (r), (k))
 #endif
 
