@@ -325,9 +325,9 @@ static Reg ra_rematk(ASMState *as, IRRef ref)
     ra_free(as, r);
     ra_modified(as, r);
 #if LJ_64
-    emit_loadi(as, r, ra_krefk(as, ref));
-#else
     emit_loadu64(as, r, ra_krefk(as, ref));
+#else
+    emit_loadi(as, r, ra_krefk(as, ref));
 #endif
     return r;
   }
