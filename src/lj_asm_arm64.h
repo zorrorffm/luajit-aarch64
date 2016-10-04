@@ -217,24 +217,18 @@ static uint32_t asm_fuseopm(ASMState *as, A64Ins ai, IRRef ref, RegSet allow)
 	return m;
     }
   } else if (mayfuse(as, ref)) {
-#if 0
-    /* !!!TODO fuse shifts into this instruction, as ARM does */
-    if (ir->o >= IR_BSHL && ir->o <= IR_BROR) {
+    if (ir->o >= IR_BSHL && ir->o <= IR_BSAR) {
       Reg m = ra_alloc1(as, ir->op1, allow);
-      ARMShift sh = ir->o == IR_BSHL ? ARMSH_LSL :
-		    ir->o == IR_BSHR ? ARMSH_LSR :
-		    ir->o == IR_BSAR ? ARMSH_ASR : ARMSH_ROR;
+      A64Shift sh = ir->o == IR_BSHL ? A64SH_LSL :
+		    ir->o == IR_BSHR ? A64SH_LSR : A64SH_ASR;
       if (irref_isk(ir->op2)) {
-	return A64F_M(m) | ARMF_SH(sh, (IR(ir->op2)->i & 31));
-      } else {
-	Reg s = ra_alloc1(as, ir->op2, rset_exclude(allow, m));
-	return A64F_M(m) | ARMF_RSH(sh, s);
+	return A64F_M(m) | A64F_SH(sh,
+                            (IR(ir->op2)->i & (irt_is64(ir->t) ? 63 : 31)));
       }
     } else if (ir->o == IR_ADD && ir->op1 == ir->op2) {
-      Reg m = ra_alloc1(as, ir->op1, allow);
-      return A64F_M(m) | ARMF_SH(ARMSH_LSL, 1);
+     Reg m = ra_alloc1(as, ir->op1, allow);
+     return A64F_M(m) | A64F_SH(A64SH_LSL, 1);
     }
-#endif
   }
   return A64F_M(ra_allocref(as, ref, allow));
 }
@@ -1291,17 +1285,14 @@ static int asm_swapops(ASMState *as, IRRef lref, IRRef rref)
     return 0;  /* Don't swap constants to the left. */
   if (irref_isk(lref))
     return 1;  /* But swap constants to the right. */
-#if 0
   IRIns *ir = IR(rref);
-  /* !!!TODO check for AArch64 fuseable ops here instead */
-  if ((ir->o >= IR_BSHL && ir->o <= IR_BROR) ||
+  if ((ir->o >= IR_BSHL && ir->o <= IR_BSAR) ||
       (ir->o == IR_ADD && ir->op1 == ir->op2))
     return 0;  /* Don't swap fusable operands to the left. */
   ir = IR(lref);
-  if ((ir->o >= IR_BSHL && ir->o <= IR_BROR) ||
+  if ((ir->o >= IR_BSHL && ir->o <= IR_BSAR) ||
       (ir->o == IR_ADD && ir->op1 == ir->op2))
     return 1;  /* But swap fusable operands to the right. */
-#endif
   return 0;  /* Otherwise don't swap. */
 }
 
@@ -1310,14 +1301,10 @@ static void asm_intop(ASMState *as, IRIns *ir, A64Ins ai)
   IRRef lref = ir->op1, rref = ir->op2;
   Reg left, dest = ra_dest(as, ir, RSET_GPR);
   uint32_t m;
-  /* !!!TODO AArch64 doesn't have RSB, so swapping is harder than ARM */
-#if 0
-  if (asm_swapops(as, lref, rref)) {
+  if (asm_swapops(as, lref, rref) &&
+      (ai & ~A64I_S & ~A64I_X) != A64I_SUBw) {
     IRRef tmp = lref; lref = rref; rref = tmp;
-    if ((ai & ~A64I_S) == A64I_SUB || (ai & ~A64I_S) == A64I_SBC)
-      ai ^= (A64I_SUB^A64I_RSB);
   }
-#endif
   left = ra_hintalloc(as, lref, dest, RSET_GPR);
   m = asm_fuseopm(as, ai, rref, rset_exclude(RSET_GPR, left));
   if (irt_isguard(ir->t)) {  /* For IR_ADDOV etc. */
