@@ -3,7 +3,7 @@
 ** Copyright !!!TODO
 */
 
-static Reg ra_allock(ASMState *as, int32_t k, RegSet allow);
+static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow);
 
 #define emit_canremat(ref)      ((ref) <= ASMREF_L)
 
